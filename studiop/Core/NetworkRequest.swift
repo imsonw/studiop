@@ -4,14 +4,14 @@ import Foundation
 /// present on every request (`token`, `lang`, `device_fw`) — callers only specify what's
 /// specific to their endpoint.
 struct NetworkRequest {
-    enum Method: String {
+    enum Method: String, Equatable {
         case get = "GET"
         case post = "POST"
         case delete = "DELETE"
     }
 
     /// Which token this request authenticates with — see docs/api-reference.md -> Auth mechanism.
-    enum Authentication {
+    enum Authentication: Equatable {
         case publicToken
         case userToken
     }

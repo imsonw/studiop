@@ -8,6 +8,20 @@ description: >
   deferred to a later sprint); Forum and Marketplace are included in this backlog but pinned to
   the end as low-priority, since they are off by feature flag in the source app.
 
+  Data-layer build-out is just-in-time, not batched (confirmed with the user on 2026-07-15):
+  after Sprint 2 built Domain (Entities/Repository protocols/UseCases) for all 16 domains at
+  once, Sprint 3 was deliberately narrowed to RepositoryImpl for only Auth + User — just enough
+  for Sprint 4's vertical slice to validate the RepositoryImpl/DTO-mapping pattern against the
+  real backend once, before committing to it across the other 14 domains. Reason: docs/api-
+  reference.md was reverse-engineered from the Flutter client, not confirmed with the backend
+  team — if Sprint 4 surfaces a systemic mapping issue, only 2 domains need rework instead of 16.
+  Every later feature sprint (5, 6, 7, 9, 10, 11, ...) is expected to include its own "build
+  RepositoryImpl + DependencyKey for domain X" DEV tasks immediately before that sprint's
+  Presentation/UI work, for whichever Repository protocols that sprint's features need and Data
+  layer doesn't cover yet — do not assume Data layer is already done for a domain just because
+  Domain (protocols) exists for it. `Data/` mirrors `Domain/`'s per-feature folder layout
+  (`Data/Auth/`, `Data/Commerce/`, ...), confirmed 2026-07-15 — see docs/architecture.md.
+
 sprints:
   - sprint: 1
     goal: >
@@ -59,23 +73,26 @@ sprints:
 
   - sprint: 3
     goal: >
-      Data layer (REST only): RepositoryImpl for every REST-backed protocol, wired to
-      NetworkClient, with a DependencyKey (liveValue/testValue/previewValue) per repository.
-      Firebase RTDB and Ably data sources are built alongside the features that need them
-      (Sprint 9 and Sprint 10) rather than speculatively here.
-    status: pending
+      Data layer (REST only) for Auth + User ONLY — narrowed from the original "all 16 domains"
+      scope on 2026-07-15 to reduce rework risk (see top-level description). RepositoryImpl +
+      DTO<->Entity mapping + DependencyKey for AuthRepository and UserRepository, wired to
+      Core's NetworkClient, just enough for Sprint 4's vertical slice. The other 14 domains'
+      Data layer (Biometric, Address, Notification, Stream, Studio, Game, Store, Order, Payment,
+      Review, Chat, Media, StaticContent, Location) is deferred to whichever later sprint
+      builds the feature that needs it.
+    status: completed
     features:
       - id: F-008
-        title: REST RepositoryImpls
+        title: REST RepositoryImpls (Auth + User only)
         description: >
-          DTO<->Entity mapping and RepositoryImpl for Auth, Biometric, User, Address,
-          Notification, Studio, Game, Store, Order, Payment, Review, Media, StaticContent,
-          Location, and the REST portions of Stream and Chat.
+          DTO<->Entity mapping and RepositoryImpl for AuthRepository and UserRepository only.
+          The other 14 domains listed in the original F-008 description are deferred — see
+          top-level description's just-in-time Data-layer decision.
       - id: F-009
-        title: DependencyKeys
+        title: DependencyKeys (Auth + User only)
         description: >
           One swift-dependencies DependencyKey + DependencyValues extension per repository
-          protocol from F-006, wiring liveValue to its RepositoryImpl.
+          protocol from F-008, wiring liveValue to its RepositoryImpl.
 
   - sprint: 4
     goal: >

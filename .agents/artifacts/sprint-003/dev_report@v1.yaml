@@ -1,0 +1,63 @@
+status: completed
+
+tasks_completed:
+  - TASK-1
+  - TASK-2
+  - TASK-3
+  - TASK-4
+  - TASK-5
+  - TASK-6
+  - TASK-7
+  - TASK-8
+
+tasks_in_progress: []
+
+remaining_tasks:
+  - TASK-9   # QA — not a DEV task
+
+unit_tests_passed: true
+
+notes: >
+  Data layer built for AuthRepository + UserRepository only, per the narrowed Sprint 3 scope
+  (confirmed with the user 2026-07-15 to reduce rework risk before Sprint 4 validates the
+  RepositoryImpl/DTO pattern against the real backend). Files live under Data/Auth/{DTOs,Network,
+  DependencyKeys}/, mirroring Domain/Auth/'s feature-folder layout.
+
+  15 new DTOs (Data/Auth/DTOs/): request DTOs for every AuthRepository/UserRepository method with
+  a body, plus AuthSessionResponseDTO, UserDTO, and AddressDTO (shared by both repositories).
+  AuthRepositoryImpl and UserRepositoryImpl (Data/Auth/Network/) each call Core's NetworkClient
+  from Sprint 1 — no direct URLSession/Keychain access. AuthRepositoryKey/UserRepositoryKey
+  (Data/Auth/DependencyKeys/) follow Sprint 1's exact liveValue/testValue/previewValue pattern
+  (liveValue resolves `networkClient` via `@Dependency` inside the computed property; testValue
+  throws by default so an un-overridden test fails loudly; previewValue returns canned data).
+
+  Auth mechanism respected exactly: every AuthRepositoryImpl method uses `.publicToken`
+  (pre-authentication — register/login/verify/reset/social all happen before a session exists).
+  Every UserRepositoryImpl method relies on `NetworkRequest`'s `.userToken` default (never stated
+  explicitly, since that's already the default) — the logged-in user's own token.
+
+  Two things flagged as best-guess pending backend confirmation (commented inline, consistent
+  with Sprint 1's placeholder-domain approach — docs/api-reference.md documents these endpoints'
+  request bodies but not their literal response JSON):
+    1. `UserDTO`/`AuthSessionResponseDTO`'s field names (`id_encode`, `avatar`, `company_name`,
+       `tax_code`, `social_provider`, and the `{token, user}` wrapper shape for auth responses).
+    2. `ChangeUserAddressRequestDTO`'s `main_address`/`shipping_address` wrapper key names.
+  Sprint 4's vertical slice (real login against the real backend) is exactly the sprint that
+  should surface whether these guesses were right — that's the point of narrowing this sprint.
+
+  A real bug caught during testing (test bug, not production bug): a test asserted
+  `json["shipping_address"] is NSNull` for a nil `Address?` argument, but Swift's synthesized
+  `Encodable` conformance uses `encodeIfPresent` for `Optional` properties, which OMITS the key
+  from JSON entirely when nil — it does not encode an explicit `null`. Fixed the assertion to
+  `json["shipping_address"] == nil` (key absent) instead.
+
+  Also added `Equatable` conformance to `NetworkRequest.Method` and `NetworkRequest.Authentication`
+  (Core/NetworkRequest.swift) — needed for test assertions like
+  `#expect(request.authentication == .publicToken)`; Swift doesn't auto-synthesize `Equatable`
+  for an enum unless the conformance is explicitly declared, even for a plain no-payload enum.
+
+  Build verified: `xcodebuild build` green; `xcodebuild test -only-testing:studiopTests` green,
+  143/143 tests pass (Sprint 1's 20 + Sprint 2's 116 + Sprint 3's ~7 new RepositoryImpl tests,
+  net of a couple of tests renamed/merged during the assertion fix). Note: the default
+  `studiopUITests` target hit a transient simulator runner crash ("Mach error -308") unrelated to
+  any code in this sprint — did not retry since UI tests aren't part of this sprint's scope.

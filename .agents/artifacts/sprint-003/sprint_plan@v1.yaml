@@ -1,0 +1,124 @@
+sprint_goal: >
+  Data layer (REST only) for AuthRepository + UserRepository ONLY — deliberately narrowed from
+  "all 16 domains" (confirmed with the user 2026-07-15) to validate the RepositoryImpl/DTO
+  pattern against the real backend in Sprint 4's vertical slice before committing to it across
+  every domain. RepositoryImpl calls Core's NetworkClient (Sprint 1); DTOs live in Data, never
+  imported by Domain. Files live under Data/Auth/ to mirror Domain/Auth/'s feature layout.
+
+backlog:
+  - id: F-008
+    title: REST RepositoryImpls (Auth + User)
+    description: >
+      AuthRepositoryImpl and UserRepositoryImpl, each conforming to its Domain protocol
+      (Domain/Auth/Repositories/{AuthRepository,UserRepository}.swift) and calling the real
+      endpoints from docs/api-reference.md via Core's NetworkClient.
+    acceptance_criteria:
+      - Every method call builds a `NetworkRequest` matching its docs/api-reference.md row
+        exactly: path, HTTP method, and body/query fields — no invented endpoints or fields.
+      - Auth mechanism respected exactly (docs/api-reference.md -> Auth mechanism): register,
+        login, verifyAccount, resetPassword, confirmResetPassword, loginWithSocial all use
+        `.publicToken` (pre-authentication, no user session exists yet). Every UserRepository
+        method uses `.userToken` (default) — the logged-in user's own token.
+      - RepositoryImpl decodes the raw `Data` from `NetworkClient.send(_:)` into a DTO
+        (`Decodable`, one type per distinct response shape) living in Data/Auth/DTOs/, then maps
+        DTO -> Domain entity (`User`, `AuthSession`) via a mapping function/initializer — Domain
+        entities are never `Decodable` themselves (Domain has zero networking/Codable concerns).
+      - Request bodies are encoded from a `Encodable` DTO (or `[String: Any]` -> `Data` via
+        `JSONSerialization` if a body needs to omit `nil` fields not representable cleanly in
+        `Encodable`) — do not hand-roll JSON string interpolation.
+      - No RepositoryImpl reads/writes Keychain directly — token persistence stays exclusively
+        in Core's KeychainStore, called by NetworkClient, not by RepositoryImpl.
+
+  - id: F-009
+    title: DependencyKeys (Auth + User)
+    description: >
+      One swift-dependencies DependencyKey + DependencyValues extension per protocol, wiring
+      liveValue to the RepositoryImpl from F-008.
+    acceptance_criteria:
+      - `AuthRepositoryKey`/`UserRepositoryKey` (or equivalent) each declare `liveValue` (real
+        `RepositoryImpl`, resolving `NetworkClient` via `@Dependency(\.networkClient)` inside the
+        `liveValue` computed property — same pattern as Sprint 1's `NetworkClientKey`),
+        `testValue` (a hand-written fake, throwing by default so an un-overridden test fails
+        loudly — same pattern as Sprint 1's `UnimplementedNetworkClient`), and `previewValue` (a
+        fake returning canned data, no network).
+      - DependencyKeys live under Data/Auth/DependencyKeys/, one file per protocol.
+      - This is the ONLY sprint so far where a Repository protocol becomes DI-resolvable —
+        Sprint 2 explicitly deferred this; confirm no stray DependencyKey exists yet for any of
+        the other 14 Repository protocols.
+
+tasks:
+  - id: TASK-1
+    owner: DEV
+    description: >
+      DTOs for Auth under Data/Auth/DTOs/: request DTOs for register/login/verifyAccount/
+      resetPassword/confirmResetPassword/loginWithSocial, and a response DTO for the
+      login/register/social-login result (maps to `AuthSession`). Include the DTO -> `AuthSession`
+      mapping.
+    depends_on: []
+
+  - id: TASK-2
+    owner: DEV
+    description: >
+      `AuthRepositoryImpl` under Data/Auth/Network/: implements every `AuthRepository` method
+      using `NetworkClient.send(_:)` with `.publicToken` authentication, per docs/api-
+      reference.md's Auth table.
+    depends_on: [TASK-1]
+
+  - id: TASK-3
+    owner: DEV
+    description: >
+      `AuthRepositoryKey: DependencyKey` under Data/Auth/DependencyKeys/ — liveValue/testValue/
+      previewValue per F-009's acceptance criteria.
+    depends_on: [TASK-2]
+
+  - id: TASK-4
+    owner: DEV
+    description: >
+      Unit tests for `AuthRepositoryImpl` using a hand-written `FakeNetworkClient: NetworkClient`
+      (returns canned JSON `Data`, records the `NetworkRequest` it received) — assert path/
+      method/body/authentication sent per method, and correct DTO->entity decoding, including at
+      least one malformed-response error-path test.
+    depends_on: [TASK-2]
+
+  - id: TASK-5
+    owner: DEV
+    description: >
+      DTOs for User under Data/Auth/DTOs/: response DTO for `/users/info` (maps to `User`),
+      request DTOs for changePassword/changeUserInfo/changeUserProfile/changeUserAddress/
+      requestAccountRemoval/confirmAccountRemoval. Include DTO <-> `User`/`Address` mapping.
+    depends_on: []
+
+  - id: TASK-6
+    owner: DEV
+    description: >
+      `UserRepositoryImpl` under Data/Auth/Network/: implements every `UserRepository` method
+      using `NetworkClient.send(_:)` with `.userToken` (default) authentication, per docs/api-
+      reference.md's User table.
+    depends_on: [TASK-5]
+
+  - id: TASK-7
+    owner: DEV
+    description: >
+      `UserRepositoryKey: DependencyKey` under Data/Auth/DependencyKeys/ — liveValue/testValue/
+      previewValue per F-009's acceptance criteria.
+    depends_on: [TASK-6]
+
+  - id: TASK-8
+    owner: DEV
+    description: >
+      Unit tests for `UserRepositoryImpl` using the same `FakeNetworkClient` pattern as TASK-4 —
+      assert path/method/body/authentication sent per method and correct DTO->entity decoding,
+      including at least one malformed-response error-path test.
+    depends_on: [TASK-6]
+
+  - id: TASK-9
+    owner: QA
+    description: >
+      Verify: every AuthRepositoryImpl/UserRepositoryImpl method matches docs/api-reference.md
+      exactly (path/method/body/query); public vs user token used correctly per method (grep for
+      `.publicToken`/`.userToken` against the Auth mechanism table); Domain still has zero
+      networking/Codable imports (DTOs and Codable conformances live only in Data); exactly 2
+      DependencyKeys exist for Repository protocols (Auth, User) — no stray DependencyKey for any
+      of the other 14 protocols; no RepositoryImpl touches Keychain directly; build + full test
+      suite green.
+    depends_on: [TASK-3, TASK-4, TASK-7, TASK-8]

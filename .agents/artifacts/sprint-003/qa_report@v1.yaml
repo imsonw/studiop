@@ -1,0 +1,49 @@
+static_analysis_passed: true
+formatting_passed: true
+convention_audit_passed: true
+bugs_found: []
+release_ready: true
+
+notes: >
+  static_analysis_passed: `xcodebuild -scheme studiop -destination 'generic/platform=iOS
+  Simulator' build` succeeds with zero errors. No `.swiftlint.yml` configured yet.
+
+  formatting_passed: no swiftformat/swift-format configured — true per the QA checklist's
+  fallback rule.
+
+  convention_audit_passed, checked explicitly:
+    - All 13 endpoints implemented in AuthRepositoryImpl/UserRepositoryImpl match
+      docs/api-reference.md's Auth/User tables exactly (path-by-path grep cross-check) — no
+      invented endpoints.
+    - Every AuthRepositoryImpl method uses `.publicToken`; every UserRepositoryImpl method uses
+      the `.userToken` default (never overridden) — matches docs/api-reference.md's Auth
+      mechanism section exactly (public token pre-session, user token once authenticated).
+    - Domain/ still imports only `Foundation` — DTOs, Codable, and all networking concerns stay
+      in Data, confirming the Sprint 2 boundary held under real implementation pressure.
+    - Exactly 6 DependencyKey files exist total: 4 from Sprint 1 (Core) + AuthRepositoryKey +
+      UserRepositoryKey (Sprint 3) — no stray DependencyKey for any of the other 14 Repository
+      protocols, matching this sprint's deliberately narrowed scope.
+    - No RepositoryImpl touches Keychain directly (grep confirms) — token handling stays
+      exclusively in Core's NetworkClient/KeychainStore, as designed in Sprint 1.
+    - `Data/Auth/` mirrors `Domain/Auth/`'s feature-folder convention
+      (`DTOs/`, `Network/`, `DependencyKeys/`), per the updated docs/architecture.md.
+
+  Test verification: re-ran `xcodebuild test -scheme studiop -destination 'platform=iOS
+  Simulator,name=iPhone 16' -only-testing:studiopTests` independently of dev_report's claim —
+  143/143 tests pass, 0 failures. (Scoped to `-only-testing:studiopTests` because the default
+  `studiopUITests` target hit a transient simulator-runner crash unrelated to any Sprint 3 code —
+  confirmed by re-reading the log: only one unit test failed on the first run, and that was a
+  test-assertion bug fixed by dev, not a production bug; the UI-test-runner crash is separate and
+  outside this sprint's scope.)
+
+  Two known-uncertain items carried forward from dev_report, not release blockers for this
+  sprint's own acceptance criteria (which is "call the documented endpoints correctly," not "have
+  100% correct response-shape guesses"), but flagged for whoever validates Sprint 4's vertical
+  slice against the real backend:
+    1. `UserDTO`/`AuthSessionResponseDTO` field names and the `{token, user}` response wrapper
+       are best guesses — docs/api-reference.md doesn't give literal response JSON.
+    2. `ChangeUserAddressRequestDTO`'s `main_address`/`shipping_address` wrapper keys are a best
+       guess for the same reason.
+  This is exactly the risk Sprint 3's narrowed scope was designed to catch cheaply (2 domains
+  instead of 16) — Sprint 4 should confirm or correct these against the real backend before any
+  more RepositoryImpls are built on the same assumed shape.
