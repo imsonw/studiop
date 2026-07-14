@@ -37,7 +37,7 @@ sprints:
     goal: >
       Domain layer: Entities + Repository protocols for every domain in api-reference.md.
       Direct translation of that file's section headers, no new discovery needed.
-    status: pending
+    status: completed
     features:
       - id: F-005
         title: Entities

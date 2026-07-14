@@ -1,0 +1,54 @@
+static_analysis_passed: true
+formatting_passed: true
+convention_audit_passed: true
+bugs_found: []
+release_ready: true
+
+notes: >
+  static_analysis_passed: `xcodebuild -scheme studiop -destination 'generic/platform=iOS
+  Simulator' build` succeeds with zero errors (after the `ProductCategory` rename fix — see
+  below). No `.swiftlint.yml` configured yet, so no lint pass ran.
+
+  formatting_passed: no swiftformat/swift-format configured — set true per the QA checklist's
+  fallback rule rather than failing the sprint on it.
+
+  convention_audit_passed, checked explicitly:
+    - Domain has zero imports beyond `Foundation` anywhere in Domain/Entities, Domain/Repositories,
+      Domain/UseCases (grep confirms) — no networking, Firebase, Ably, or UIKit imports.
+    - Zero `DependencyKey` and zero `import Dependencies` anywhere in Domain — correctly deferred
+      to Sprint 3, matching the sprint plan's explicit design decision (UseCases use constructor
+      injection, not `@Dependency`, since no RepositoryImpl/liveValue exists yet).
+    - Exactly 16 Repository protocols exist, matching the sprint plan's list precisely —
+      `ForumRepository` is absent, correctly excluded per the confirmed scope decision (deferred
+      to Sprint 14).
+    - Zero hardcoded `https://` or backend domain strings anywhere in Domain — Domain has no
+      opinion on where the backend lives (correct; that's Core's `AppEnvironment`, untouched this
+      sprint).
+    - Zero mentions of "refresh" (token refresh) anywhere in Domain — no UseCase invents a
+      refresh flow the backend doesn't support.
+    - Every Repository protocol method was spot-checked against its docs/api-reference.md table
+      during dev_report review; method-per-endpoint-row structure holds for all 16 protocols, no
+      invented endpoints found.
+
+  Test verification: re-ran `xcodebuild test -scheme studiop -destination 'platform=iOS
+  Simulator,name=iPhone 16'` independently of dev_report's claim — 136/136 tests pass, 0
+  failures (Sprint 1's 20 tests + Sprint 2's ~116 new UseCase tests), confirming
+  `unit_tests_passed: true` was accurate after the fix below.
+
+  One real bug caught and fixed during this QA pass (not present in the final dev_report state,
+  documented here for traceability): the Commerce group's `Category` entity collided with
+  Objective-C runtime's own `Category` type once Swift Testing's toolchain pulled in
+  `objc/runtime.h` inside `StoreUseCaseTests.swift` — compiled fine in the app target, failed
+  only in the test target ("'Category' is ambiguous for type lookup"). Renamed to
+  `ProductCategory` across its 5 referencing files; rebuild + retest both green. This is the same
+  class of bug as Sprint 1's `Environment`/`@Environment` collision — worth a standing habit of
+  checking new Domain entity names against common Foundation/ObjC-reserved words before naming
+  them (`Environment`, `Category`, `Notification` are all already claimed — this sprint correctly
+  avoided bare `Notification` in favor of `NotificationItem`).
+
+  Carried-over item, not a release blocker for this sprint (Domain layer has no opinion on
+  backend response shape until Sprint 3's DTOs exist), flagged for whoever picks up Sprint 3: the
+  Commerce group's `StoreSettings` entity covers both the filter/homepage-zone shapes and the
+  store-front detail shape (`GET /stores/detail`) since no dedicated `Store` entity was scoped in
+  the sprint plan — confirm with the user whether a distinct entity is wanted before Sprint 3
+  builds its DTO/RepositoryImpl.

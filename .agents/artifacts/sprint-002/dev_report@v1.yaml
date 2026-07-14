@@ -1,0 +1,65 @@
+status: completed
+
+tasks_completed:
+  - TASK-1
+  - TASK-2
+  - TASK-3
+  - TASK-4
+  - TASK-5
+  - TASK-6
+  - TASK-7
+  - TASK-8
+  - TASK-9
+  - TASK-10
+  - TASK-11
+  - TASK-12
+  - TASK-13
+  - TASK-14
+  - TASK-15
+
+tasks_in_progress: []
+
+remaining_tasks:
+  - TASK-16   # QA — not a DEV task
+
+unit_tests_passed: true
+
+notes: >
+  Domain layer built for every domain in docs/api-reference.md except ForumRepository (excluded
+  per confirmed scope decision, deferred to Sprint 14). 5 groups delivered in parallel: Auth &
+  Account, Live & Social, Games, Commerce, Chat & Support.
+
+  Totals: 36 Entities, 16 Repository protocols (AuthRepository, BiometricRepository,
+  UserRepository, AddressRepository, NotificationRepository, StreamRepository, StudioRepository,
+  GameRepository, StoreRepository, OrderRepository, PaymentRepository, ReviewRepository,
+  ChatRepository, MediaRepository, StaticContentRepository, LocationRepository), ~93 UseCases
+  (one per Repository protocol method), all under studiop/Domain/{Entities,Repositories,UseCases}/.
+  136 unit tests total (Sprint 1's 20 + ~116 new UseCase tests, one hand-written fake per
+  Repository protocol in studiopTests/, never shipped in the app target).
+
+  Per the sprint plan's explicit design decision: every UseCase takes its Repository via
+  constructor injection (`init(repository:)`), NOT `@Dependency` — no `DependencyKey` exists for
+  any of these 16 Repository protocols yet, since there's no RepositoryImpl to serve as
+  `liveValue` until Sprint 3. Wiring UseCases into the live DI graph is deferred to whichever
+  sprint builds the ViewModels that consume them.
+
+  Naming collision caught by the test build, not the app build (a new variant of Sprint 1's
+  `Environment`/`@Environment` lesson): the Commerce group's `Category` entity
+  (`GET /stores/categories`) compiled fine in the main app target, but `StoreUseCaseTests.swift`
+  failed with "'Category' is ambiguous for type lookup" — Swift Testing's toolchain pulls in
+  `objc/runtime.h`, which also defines a type literally called `Category` (an Objective-C runtime
+  concept), and the test file's scope saw both. Renamed the entity to `ProductCategory`
+  (Entities/ProductCategory.swift) across its 5 referencing files; rebuild + retest both green
+  afterward. Worth remembering as a general rule: several common English nouns (`Category`,
+  `Environment`, likely also `Notification` — avoided here by naming ours `NotificationItem`
+  instead of bare `Notification`, which collides with Foundation's own `Notification` struct)
+  are already claimed by Apple frameworks and silently shadow-able.
+
+  One scope judgment call from the Commerce group, flagged for PM/TL/user review: no dedicated
+  entity was created for the store-front (`GET /stores/detail`) itself — `StoreSettings` was
+  extended to cover both the filter/homepage-zone shapes and the store-front detail shape, since
+  the sprint plan's entity list didn't call out a separate "Store" entity. If a distinct
+  `Store`/seller-profile entity is wanted, that's a small follow-up, not a redo.
+
+  Build verified: `xcodebuild build` and `xcodebuild test` both green on iPhone 16 Simulator
+  (136/136 tests pass, 0 failures) after the `ProductCategory` rename.

@@ -1,0 +1,180 @@
+sprint_goal: >
+  Domain layer: Entities + Repository protocols + UseCases for every domain in
+  docs/api-reference.md, direct translation of that file's section headers (no new discovery
+  needed). ForumRepository is explicitly OUT of scope — pinned to Sprint 14 per
+  product_backlog.yaml's confirmed scope decision (feature-flagged off in the source app). No
+  RepositoryImpl, no networking, no swift-dependencies wiring in this sprint — that begins in
+  Sprint 3. Domain must never import networking, Firebase, or Ably (CLAUDE.md).
+
+backlog:
+  - id: F-005
+    title: Entities
+    description: >
+      Plain Swift structs (Domain/Entities/, one file per entity) for every value type a
+      Repository protocol method in this sprint needs to accept or return.
+    acceptance_criteria:
+      - Every entity is a plain `struct` (or `enum` for closed value sets) — zero imports beyond
+        Foundation; no networking/Firebase/Ably/UIKit types anywhere in Domain/Entities/.
+      - Entities conform to `Equatable` (and `Sendable` where they'll cross concurrency
+        boundaries) but carry no DTO/JSON-coding-key concerns — that mapping is Data layer's job
+        in Sprint 3, not Domain's.
+      - Field names/shapes are derived directly from the request/response shapes documented in
+        docs/api-reference.md for each endpoint — no invented fields.
+
+  - id: F-006
+    title: Repository protocols
+    description: >
+      One protocol per domain header in docs/api-reference.md: AuthRepository,
+      BiometricRepository, UserRepository, AddressRepository, NotificationRepository,
+      StreamRepository, StudioRepository, GameRepository, StoreRepository, OrderRepository,
+      PaymentRepository, ReviewRepository, ChatRepository, MediaRepository,
+      StaticContentRepository, LocationRepository. (ForumRepository excluded — see sprint_goal.)
+    acceptance_criteria:
+      - Each protocol lives in Domain/Repositories/, one file per protocol, method-per-endpoint
+        matching docs/api-reference.md's tables 1:1 (path/verb/params implied by the method
+        signature, not hardcoded strings — those live in Data layer, Sprint 3).
+      - Protocol methods are `async throws`, take/return only Domain entities (from F-005) or
+        Swift primitives — never a DTO, `Data`, `URLRequest`, or any Core/Data type.
+      - No protocol has a concrete conformance yet in this sprint (that's RepositoryImpl, Sprint
+        3) and no `DependencyKey` is created for any Repository protocol yet — creating one now
+        would be premature since there's no `liveValue` implementation to wire until Sprint 3.
+      - Live-only realtime paths (Firebase RTDB for viewer counts/live chat/reactions/bid
+        leaderboard, Ably for chat delivery) are NOT modeled as Repository protocol methods here —
+        StreamRepository/ChatRepository in this sprint cover only their REST-backed methods from
+        docs/api-reference.md; the realtime data-source abstractions are built alongside the
+        features that need them (Sprint 9/10 per docs/architecture.md roadmap), not speculatively
+        now.
+
+  - id: F-007
+    title: UseCases
+    description: >
+      One UseCase per Repository protocol method (thin wrapper composing exactly one Repository
+      call each) — no invented business logic beyond what a single call already does.
+    acceptance_criteria:
+      - Each UseCase is a plain `struct` in Domain/UseCases/ taking its Repository protocol as a
+        constructor parameter (`init(repository: SomeRepository)`) — NOT `@Dependency` directly
+        inside the UseCase. Reason: no `DependencyKey` exists for any Repository protocol until
+        Sprint 3, so a UseCase reaching for `@Dependency(\.someRepository)` today would not
+        compile. Constructor injection keeps Domain fully self-contained and testable now;
+        wiring UseCases to the live DI graph is deferred to whichever sprint builds the
+        ViewModels that consume them (Sprint 4+).
+      - Every UseCase has at least one unit test using a hand-written fake conforming to the
+        Repository protocol (fakes live in studiopTests/, never shipped in the app target).
+      - No UseCase silently combines multiple Repository calls into new orchestration logic not
+        already implied by a single documented endpoint — that kind of composition is deferred
+        until a real screen (Presentation layer, later sprints) demonstrates the need, to avoid
+        guessing flows that don't exist yet.
+
+tasks:
+  # --- Auth & Account group ---
+  - id: TASK-1
+    owner: DEV
+    description: >
+      Entities for Auth & Account: User, Address, NotificationItem, BiometricDevice,
+      AuthSession (token + user, the shared result shape of register/login/social-login).
+    depends_on: []
+
+  - id: TASK-2
+    owner: DEV
+    description: >
+      Repository protocols: AuthRepository, BiometricRepository, UserRepository,
+      AddressRepository, NotificationRepository — methods mirroring
+      docs/api-reference.md's Auth/Biometric/User/Address/Notification tables exactly.
+    depends_on: [TASK-1]
+
+  - id: TASK-3
+    owner: DEV
+    description: >
+      UseCases for Auth & Account (one per protocol method from TASK-2), each with a unit test
+      against a fake Repository.
+    depends_on: [TASK-2]
+
+  # --- Live & Social group ---
+  - id: TASK-4
+    owner: DEV
+    description: >
+      Entities for Live & Social: LiveStreamSummary, StudioProfile, StudioInteractionFilter —
+      REST-only shapes from StreamRepository/StudioRepository tables (no RTDB-specific types;
+      those come in Sprint 9).
+    depends_on: []
+
+  - id: TASK-5
+    owner: DEV
+    description: >
+      Repository protocols: StreamRepository, StudioRepository — REST methods only, per
+      docs/api-reference.md.
+    depends_on: [TASK-4]
+
+  - id: TASK-6
+    owner: DEV
+    description: UseCases for Live & Social (one per protocol method from TASK-5), with unit tests.
+    depends_on: [TASK-5]
+
+  # --- Games group ---
+  - id: TASK-7
+    owner: DEV
+    description: >
+      Entities for Games: BlackjackStats, SpinWheelStudio, SpinWheelConfig, SpinWheelResult.
+    depends_on: []
+
+  - id: TASK-8
+    owner: DEV
+    description: Repository protocol GameRepository — per docs/api-reference.md's Blackjack/Lucky Wheel table.
+    depends_on: [TASK-7]
+
+  - id: TASK-9
+    owner: DEV
+    description: UseCases for Games (one per protocol method from TASK-8), with unit tests.
+    depends_on: [TASK-8]
+
+  # --- Commerce group ---
+  - id: TASK-10
+    owner: DEV
+    description: >
+      Entities for Commerce: Product, ProductSummary, Brand, Category, CartItem, Order,
+      OrderItem, PaymentHandoff, Review, ReviewStoreStats, Voucher.
+    depends_on: []
+
+  - id: TASK-11
+    owner: DEV
+    description: >
+      Repository protocols: StoreRepository, OrderRepository, PaymentRepository,
+      ReviewRepository — per docs/api-reference.md's Store/Order/Payment/Review tables.
+    depends_on: [TASK-10]
+
+  - id: TASK-12
+    owner: DEV
+    description: UseCases for Commerce (one per protocol method from TASK-11), with unit tests.
+    depends_on: [TASK-11]
+
+  # --- Chat & Support group ---
+  - id: TASK-13
+    owner: DEV
+    description: >
+      Entities for Chat & Support: Conversation, ChatMessage, MediaUploadResult,
+      StaticContentSlide, Country.
+    depends_on: []
+
+  - id: TASK-14
+    owner: DEV
+    description: >
+      Repository protocols: ChatRepository (REST methods only — Ably delivery is Sprint 10),
+      MediaRepository, StaticContentRepository, LocationRepository — per
+      docs/api-reference.md's respective tables.
+    depends_on: [TASK-13]
+
+  - id: TASK-15
+    owner: DEV
+    description: UseCases for Chat & Support (one per protocol method from TASK-14), with unit tests.
+    depends_on: [TASK-14]
+
+  # --- QA ---
+  - id: TASK-16
+    owner: QA
+    description: >
+      Verify: Domain/ has zero imports of networking/Firebase/Ably/UIKit; every Repository
+      protocol method matches docs/api-reference.md exactly (no invented endpoints/fields); no
+      DependencyKey exists yet for any Repository protocol (premature until Sprint 3); every
+      UseCase takes its Repository via constructor injection and has a passing unit test against
+      a fake; ForumRepository is absent from this sprint's scope.
+    depends_on: [TASK-3, TASK-6, TASK-9, TASK-12, TASK-15]
