@@ -1,0 +1,101 @@
+sprint_goal: >
+  Stand up the Core layer (NetworkClient, Environment, Keychain token store,
+  swift-dependencies) so every later Repository has a foundation to build on.
+
+backlog:
+  - id: F-001
+    title: NetworkClient protocol + URLSession implementation
+    description: >
+      Token as query param (?token=), lang header, device_fw query param, 401/403 ->
+      clear session. See docs/api-reference.md -> Auth mechanism.
+    acceptance_criteria:
+      - Every outgoing request appends ?token=<value> to the URL; no Authorization header is set.
+      - Every outgoing request sends a lang header with the current locale.
+      - Every outgoing request appends a device_fw query param.
+      - A 401/403 response, or a 200 body containing an invalid/expired/unauthorized token
+        message, triggers session clear (delegates to Keychain clear from F-003) — no
+        refresh-token call is made or attempted.
+      - Anonymous/public endpoints use the shared public token
+        (Xo0otTOevqxS4f6Vv1aGrcTfr6T5aUk5); authenticated endpoints use the logged-in user's
+        token from Keychain.
+
+  - id: F-002
+    title: Environment config
+    description: >
+      Single source of truth for staging/prod API base URL and Firebase RTDB URL,
+      re-resolvable after a Firebase Remote Config fetch. See docs/api-reference.md ->
+      Base configuration.
+    acceptance_criteria:
+      - Exactly one Environment type in Core holds the API base URL (staging/prod) and the
+        Firebase RTDB URL; no other file in the codebase hardcodes either.
+      - Environment exposes a way to re-resolve its values after a Remote Config fetch
+        (api_domain_staging/prod-style overrides), not just compile-time constants.
+
+  - id: F-003
+    title: Keychain token store
+    description: Persist the auth token in Keychain; lightweight cache for the user profile.
+    acceptance_criteria:
+      - Token read/write/clear goes through a single KeychainStore type — no other file
+        touches Keychain directly for the token.
+      - A clear() call removes the token synchronously, for use by the 401/403 handler in F-001.
+      - The cached user profile is stored separately from the token (e.g. lightweight
+        on-disk cache), matching the Flutter app's token/user_info split.
+
+  - id: F-004
+    title: swift-dependencies integration
+    description: Add the swift-dependencies SPM package as the project's only DI mechanism.
+    acceptance_criteria:
+      - swift-dependencies is added as an SPM package dependency and builds successfully.
+      - No Factory/Swinject or manual composition-root container is introduced anywhere in
+        the project.
+
+tasks:
+  - id: TASK-1
+    owner: DEV
+    description: Add the swift-dependencies SPM package to the Xcode project.
+    depends_on: []
+
+  - id: TASK-2
+    owner: DEV
+    description: >
+      Define the Environment struct in Core (staging/prod API base URL, Firebase RTDB URL),
+      with a re-resolve hook for Remote Config overrides layered on top of the compile-time
+      defaults.
+    depends_on: []
+
+  - id: TASK-3
+    owner: DEV
+    description: Implement KeychainStore for token persistence, separate from the user-profile cache.
+    depends_on: []
+
+  - id: TASK-4
+    owner: DEV
+    description: >
+      Define the NetworkClient protocol + a URLSession-based implementation: appends
+      ?token=, lang header, device_fw query param on every request; reads the base URL from
+      Environment (TASK-2).
+    depends_on: [TASK-2]
+
+  - id: TASK-5
+    owner: DEV
+    description: >
+      Wire NetworkClient's 401/403 (and invalid-token-in-200-body) handling to
+      KeychainStore.clear() — no refresh flow.
+    depends_on: [TASK-3, TASK-4]
+
+  - id: TASK-6
+    owner: DEV
+    description: >
+      Register Environment, KeychainStore, and NetworkClient as swift-dependencies
+      DependencyValues so later Repository DependencyKeys (Sprint 3) can read them via
+      @Dependency.
+    depends_on: [TASK-1, TASK-5]
+
+  - id: TASK-7
+    owner: QA
+    description: >
+      Verify: token travels as a query param (never a header) on both public and
+      authenticated calls; lang and device_fw are present on every request; a 401/403 (or
+      invalid-token 200 body) clears the Keychain token and no refresh-token call is ever
+      attempted; the backend domain appears nowhere outside Environment.
+    depends_on: [TASK-6]

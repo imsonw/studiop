@@ -1,0 +1,320 @@
+project_name: Studiop
+description: >
+  iOS/Swift rebuild of an existing Flutter live-commerce app, reusing its backend API as-is.
+  Clean Architecture: Presentation -> Domain (Entity/UseCase/Repository protocol) -> Data
+  (RepositoryImpl/DataSource) -> Core (NetworkClient/Environment). Domain never imports
+  networking, Firebase, or Ably. DI via swift-dependencies. Scope decisions confirmed with the
+  user on 2026-07-14: v1 live streaming is viewer/bidding side only (streamer/broadcast side
+  deferred to a later sprint); Forum and Marketplace are included in this backlog but pinned to
+  the end as low-priority, since they are off by feature flag in the source app.
+
+sprints:
+  - sprint: 1
+    goal: >
+      Stand up the Core layer (NetworkClient, Environment, Keychain token store,
+      swift-dependencies) so every later Repository has a foundation to build on.
+    status: pending
+    features:
+      - id: F-001
+        title: NetworkClient protocol + URLSession implementation
+        description: >
+          Token as query param (?token=), lang header, device_fw query param, 401/403 ->
+          clear session. See docs/api-reference.md -> Auth mechanism.
+      - id: F-002
+        title: Environment config
+        description: >
+          Single source of truth for staging/prod API base URL and Firebase RTDB URL,
+          re-resolvable after a Firebase Remote Config fetch. See docs/api-reference.md ->
+          Base configuration.
+      - id: F-003
+        title: Keychain token store
+        description: Persist the auth token in Keychain; lightweight cache for the user profile.
+      - id: F-004
+        title: swift-dependencies integration
+        description: Add the swift-dependencies SPM package as the project's only DI mechanism.
+
+  - sprint: 2
+    goal: >
+      Domain layer: Entities + Repository protocols for every domain in api-reference.md.
+      Direct translation of that file's section headers, no new discovery needed.
+    status: pending
+    features:
+      - id: F-005
+        title: Entities
+        description: >
+          Plain Swift structs for User, Address, Notification, LiveStream, Studio, Product,
+          Cart, Order, Payment, Review, Chat/Conversation, Game (Blackjack/LuckyWheel), and
+          related value types.
+      - id: F-006
+        title: Repository protocols
+        description: >
+          One protocol per domain: AuthRepository, BiometricRepository, UserRepository,
+          AddressRepository, NotificationRepository, StreamRepository, StudioRepository,
+          GameRepository, StoreRepository, OrderRepository, PaymentRepository,
+          ReviewRepository, ChatRepository, MediaRepository, StaticContentRepository,
+          LocationRepository.
+      - id: F-007
+        title: UseCases
+        description: One UseCase per user-facing action, composing Repository protocol calls.
+
+  - sprint: 3
+    goal: >
+      Data layer (REST only): RepositoryImpl for every REST-backed protocol, wired to
+      NetworkClient, with a DependencyKey (liveValue/testValue/previewValue) per repository.
+      Firebase RTDB and Ably data sources are built alongside the features that need them
+      (Sprint 9 and Sprint 10) rather than speculatively here.
+    status: pending
+    features:
+      - id: F-008
+        title: REST RepositoryImpls
+        description: >
+          DTO<->Entity mapping and RepositoryImpl for Auth, Biometric, User, Address,
+          Notification, Studio, Game, Store, Order, Payment, Review, Media, StaticContent,
+          Location, and the REST portions of Stream and Chat.
+      - id: F-009
+        title: DependencyKeys
+        description: >
+          One swift-dependencies DependencyKey + DependencyValues extension per repository
+          protocol from F-006, wiring liveValue to its RepositoryImpl.
+
+  - sprint: 4
+    goal: >
+      Vertical slice: wire Auth end-to-end (login -> Keychain -> /users/info -> empty Home)
+      to prove all four layers talk to each other before building out features.
+    status: pending
+    features:
+      - id: F-010
+        title: Login vertical slice
+        description: >
+          Login screen -> AuthRepository.login -> token to Keychain -> UserRepository.info ->
+          navigate to an empty Home shell. Proves the Presentation/Domain/Data/Core boundary
+          end-to-end.
+
+  - sprint: 5
+    goal: Full Auth & Account feature set beyond the vertical slice.
+    status: pending
+    features:
+      - id: F-011
+        title: Registration, quick login, email verification, password reset
+        description: Full auth flows per docs/features.md -> Auth & Account.
+      - id: F-012
+        title: Biometric login
+        description: >
+          Face ID/Touch ID, device_id + biometric_token pairing, enable/disable/check-status,
+          per docs/api-reference.md -> BiometricRepository.
+      - id: F-013
+        title: Social login
+        description: >
+          Google, Apple, TikTok, plus the post-social "collect email" screen when the
+          provider doesn't supply one.
+      - id: F-014
+        title: Profile & address book
+        description: >
+          View/edit profile, change password, change info, address book (list/create/update/
+          delete/set default, select-address bottom sheet).
+      - id: F-015
+        title: Account deletion & verification
+        description: Request-with-reason + email-code confirm; separate account verification flow.
+      - id: F-016
+        title: Feature-flag toggle screen
+        description: Dev/QA-only tool for flipping Forum/Marketplace flags.
+
+  - sprint: 6
+    goal: Store/Catalog + Cart/Checkout — highest business value, least technical risk.
+    status: pending
+    features:
+      - id: F-017
+        title: Storefront & catalog browse
+        description: Storefront tab, category browse, product list per category, brand listing.
+      - id: F-018
+        title: Product detail
+        description: Image carousel, seller card, tiered pricing, reviews, related products.
+      - id: F-019
+        title: Search
+        description: Autocomplete, recent searches, suggested products.
+      - id: F-020
+        title: Favorites & flash sale
+        description: Favorite/followed shops, flash sale list, "today's suggestion" section.
+      - id: F-021
+        title: Cart
+        description: Add/update/remove/clear/count, tiered-price add-to-cart bottom sheet.
+      - id: F-022
+        title: Checkout
+        description: >
+          Address selection, payment method, order creation, success screen, "buy now"
+          (checkout without adding to cart first).
+
+  - sprint: 7
+    goal: Orders, Payment, and Reviews.
+    status: pending
+    features:
+      - id: F-023
+        title: Order list & detail
+        description: >
+          Status filter/search, shipping/payment/voucher/invoice cards, status banner,
+          invoice PDF viewer, voucher code redemption.
+      - id: F-024
+        title: Mollie payment
+        description: In-app WebView payment, redirect back into order detail on completion.
+      - id: F-025
+        title: Reviews
+        description: >
+          Write review (star rating, photo/video upload, per line-item), view reviews
+          (product + store/shop stats), "my reviews" not-yet-reviewed/reviewed tabs.
+
+  - sprint: 8
+    goal: >
+      Home/Dashboard and the bottom tab shell, composed from the Store/Order building blocks
+      already built. Carries over two known-incomplete source-app screens as mock-data-only
+      per docs/features.md — do not silently "complete" them with an invented backend.
+    status: pending
+    features:
+      - id: F-026
+        title: Home tab
+        description: >
+          Statistics strip, home banners/slides, quote/review block, live-stream list +
+          category filter, hot products section (mock data only, no real endpoint — carry
+          the limitation over), lucky-wheel studio carousel, quick actions, per-platform
+          filter section.
+      - id: F-027
+        title: Welcome/onboarding screen
+        description: First-run onboarding flow.
+      - id: F-028
+        title: Bottom tab shell
+        description: Home / Live / Store / Forum (flag-gated) / Order / Account.
+      - id: F-029
+        title: News detail screen
+        description: >
+          Single detail screen backed by mock data only, per docs/features.md — no real
+          endpoint exists; do not invent one.
+
+  - sprint: 9
+    goal: >
+      Live viewing & bidding — viewer side only per confirmed v1 scope (2026-07-14). Includes
+      the Firebase RTDB data sources this feature needs (not built speculatively earlier).
+    status: pending
+    features:
+      - id: F-030
+        title: Live list + filter
+        description: By category/platform, per docs/api-reference.md StreamRepository + StudioRepository.
+      - id: F-031
+        title: Live room playback
+        description: >
+          Multi-CDN video playback, one player per source (native RTMP, TikTok, Twitch,
+          YouTube, Castr).
+      - id: F-032
+        title: Firebase RTDB data sources
+        description: >
+          studio_live_rooms, live_rooms_by_studio, studio_messages (+ legacy fallback paths),
+          studio_live_log, studio_active_viewers, live_stream_top_bid (read-only),
+          live_reactions, live_errors. Firebase anonymous auth for RTDB security rules only —
+          not tied to app login.
+      - id: F-033
+        title: Live chat
+        description: Firebase-backed for in-app streams, REST-polling fallback for web/social streams.
+      - id: F-034
+        title: Reactions overlay
+        description: Heart/flower, via live_reactions RTDB path.
+      - id: F-035
+        title: Bid list overlay + leaderboard
+        description: Read-only, computed server-side via live_stream_top_bid.
+      - id: F-036
+        title: "Now selling" overlay
+        description: >
+          Branch on studio_live_log (Firebase, in-app) vs REST stream/log polling (web/social)
+          per docs/api-reference.md selection rule — mirror both branches.
+      - id: F-037
+        title: Pre-live modal
+        description: "Coming soon" countdown, shop stats, media gallery, CTA button.
+
+  - sprint: 10
+    goal: Chat & Notifications.
+    status: pending
+    features:
+      - id: F-038
+        title: Support/order chat
+        description: >
+          Ably-backed (token from REST /chat/broadcasting/auth): conversation list, thread
+          view, image/video/document attachments, order-context card, connection-status
+          indicator, read/active-state sync.
+      - id: F-039
+        title: Push notifications
+        description: >
+          FCM topic-based (public/per-platform/per-user), tap-through to detail, in-app
+          notification list.
+
+  - sprint: 11
+    goal: Mini-games.
+    status: pending
+    features:
+      - id: F-040
+        title: Lucky Wheel
+        description: Per-studio spin wheel, prize modal, intro/product-detail modals tied to prizes.
+      - id: F-041
+        title: Blackjack
+        description: >
+          Full card game, stats + score recording. Keep its entry point disabled in Home to
+          mirror the source app (built, not exposed) unless the user says otherwise.
+
+  - sprint: 12
+    goal: Cross-cutting hardening across all features built so far.
+    status: pending
+    features:
+      - id: F-042
+        title: Coordinator navigation
+        description: Per-feature Coordinator/Router replacing ad-hoc NavigationStack usage.
+      - id: F-043
+        title: Localization
+        description: 11 locales, matching the source app's language coverage.
+      - id: F-044
+        title: Theming
+        description: Design tokens/colors/typography consistent across features.
+      - id: F-045
+        title: Feature flags
+        description: >
+          Mirror the Flutter FeatureFlag enum (forum, marketplace) via Firebase Remote
+          Config, consumed through Environment.
+      - id: F-046
+        title: Forced app-update banner
+        description: >
+          app_update_enabled_*, app_update_min_version_name_*, app_update_store_url_* from
+          Firebase Remote Config.
+
+  - sprint: 13
+    goal: >
+      Streaming (seller/broadcaster side) — deferred out of v1 per the RTMP scope decision
+      confirmed with the user on 2026-07-14. Low priority; revisit after Sprint 12 ships.
+    status: pending
+    features:
+      - id: F-047
+        title: RTMP broadcast start/stop
+        description: Camera broadcast start/stop.
+      - id: F-048
+        title: Selling controls mid-stream
+        description: Toggle "selling" on/off, attach a product to sell, mid-stream.
+      - id: F-049
+        title: Stream resume
+        description: Resume an in-progress stream on a new device, or one started on web.
+      - id: F-050
+        title: Broadcast reliability
+        description: >
+          Network-instability detection, streamer-side bidder list, confirm-stop-live/
+          confirm-stop-selling/confirm-web-session modals, image upload for stream/product.
+
+  - sprint: 14
+    goal: >
+      Community layer (Forum, Marketplace) — pinned last per the user's decision on
+      2026-07-14: included in the backlog but low priority, since both are off by feature
+      flag in the source app. Confirm final go/no-go with stakeholders before starting.
+    status: pending
+    features:
+      - id: F-051
+        title: Forum
+        description: >
+          Category feed, post detail + threaded comments, create post (topic/subtopic),
+          reactions, user's own forum profile (posts/comments/media tabs).
+      - id: F-052
+        title: Marketplace
+        description: >
+          Location-based classifieds: category/for-you/local tabs, multi-step listing
+          creation, deal/offer negotiation, message-seller, user's own listings + saved items.
