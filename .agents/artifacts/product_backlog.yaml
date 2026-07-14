@@ -13,7 +13,7 @@ sprints:
     goal: >
       Stand up the Core layer (NetworkClient, Environment, Keychain token store,
       swift-dependencies) so every later Repository has a foundation to build on.
-    status: pending
+    status: completed
     features:
       - id: F-001
         title: NetworkClient protocol + URLSession implementation

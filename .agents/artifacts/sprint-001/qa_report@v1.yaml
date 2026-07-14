@@ -1,0 +1,42 @@
+static_analysis_passed: true
+formatting_passed: true
+convention_audit_passed: true
+bugs_found: []
+release_ready: true
+
+notes: >
+  static_analysis_passed: `xcodebuild -scheme studiop -destination 'generic/platform=iOS
+  Simulator' build` succeeds with no errors. No .swiftlint.yml is configured yet, so no lint
+  pass was run.
+
+  formatting_passed: no swiftformat/swift-format config exists in the repo yet — set to true per
+  the QA checklist's fallback rule rather than failing the sprint on an unconfigured formatter.
+
+  convention_audit_passed, checked explicitly:
+    - Layering: only Core/ exists so far (matches Sprint 1 scope — no Domain/Data/Presentation
+      code was added, so no layering violation is possible yet).
+    - No Domain-layer imports of networking/Firebase/Ably (there is no Domain/ directory yet).
+    - Exactly one DependencyKey per Core type (EnvironmentStoreKey, KeychainStoreKey,
+      UserProfileCacheKey, NetworkClientKey), each read via a DependencyValues computed property
+      — no manual composition root, singleton container, or Factory/Swinject anywhere
+      (grep confirms).
+    - No hardcoded backend domain/URL outside AppEnvironment.swift (grep confirms).
+    - Auth token travels as a `?token=` query param; no `Authorization` header is ever set; no
+      refresh-token call exists anywhere in NetworkClient (grep confirms — only doc comments
+      mention "refresh" to say it's intentionally absent).
+    - Every network call matches docs/api-reference.md: `/users/info`-style paths are illustrative
+      in tests only; no endpoint was implemented yet since Sprint 1 is Core infra, not
+      Repository implementations — nothing to cross-check against invented endpoints.
+
+  Test verification: re-ran `xcodebuild test -scheme studiop -destination 'platform=iOS
+  Simulator,name=iPhone 16'` independently of dev_report's claim — 20/20 test cases pass, 0
+  failures, confirming unit_tests_passed: true was accurate.
+
+  Two items carried over from dev_report as known follow-ups, not release blockers for Sprint 1
+  (Core infra), but must be resolved before any real network traffic flows:
+    1. AppEnvironment.staging/.production hold placeholder domain and Firebase RTDB URLs —
+       real values are only in the Flutter client's lib/config.dart, which isn't in this repo.
+    2. The 200-body invalid-token detection is a keyword heuristic pending confirmation of the
+       backend's actual response shape.
+  Neither blocks release_ready for this sprint since Sprint 1's acceptance criteria is the Core
+  mechanism working correctly (verified above), not live traffic against the real backend.

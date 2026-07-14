@@ -1,0 +1,54 @@
+status: completed
+
+tasks_completed:
+  - TASK-1
+  - TASK-2
+  - TASK-3
+  - TASK-4
+  - TASK-5
+  - TASK-6
+
+tasks_in_progress: []
+
+remaining_tasks:
+  - TASK-7   # QA — not a DEV task
+
+unit_tests_passed: true
+
+notes: >
+  Core layer implemented under studiop/Core/: AppEnvironment.swift (AppEnvironment struct +
+  EnvironmentStore + DependencyKey), KeychainStore.swift (KeychainStoring protocol + Keychain-
+  backed impl + InMemoryKeychainStore fake + DependencyKey), UserProfileCache.swift (separate
+  from the token, per F-003's token/user_info split — not explicitly in TASK-6 but added as a
+  DependencyValue too for consistency with the DI architecture), NetworkRequest.swift
+  (NetworkRequest + NetworkError), NetworkClient.swift (NetworkClient protocol +
+  URLSessionNetworkClient + DependencyKey).
+
+  swift-dependencies added via project.pbxproj (XCRemoteSwiftPackageReference, resolved to
+  1.14.1) using the `xcodeproj` Ruby gem (no manual pbxproj hand-editing) since this project uses
+  Xcode's file-system-synchronized groups. Only the `Dependencies` product is linked — dropped
+  `DependenciesMacros` since nothing here uses its macros and Xcode's macro-plugin trust gate
+  blocks headless/CI builds that adopt it without cause.
+
+  Naming collision caught by build, not by review: the Core type had to be named
+  `AppEnvironment`, not `Environment` — the latter collides with SwiftUI's `@Environment`
+  property wrapper in the same module and silently broke ContentView.swift's
+  `@Environment(\.modelContext)` with a confusing parser-level error. CLAUDE.md/docs refer to it
+  as "the Environment config" generically; `AppEnvironment` is the concrete type name.
+
+  Two things need follow-up before this is production-ready, both flagged inline as TODO/comments:
+    1. AppEnvironment.staging/.production hold placeholder domain and Firebase RTDB URLs —
+       docs/api-reference.md points to the Flutter client's lib/config.dart for the literal
+       values, which isn't present in this repo. Needs the real values from the user/backend team.
+    2. URLSessionNetworkClient's 200-body invalid-token detection (containsInvalidTokenMessage)
+       uses a keyword heuristic (message/error/msg field containing "token" + an invalidity word)
+       since api-reference.md documents the behavior but not the literal response shape. Should
+       be tightened once the exact field/message is confirmed with the backend team.
+
+  Test note: NetworkClientTests needed @Suite(.serialized) — Swift Testing parallelizes @Test
+  methods by default, and the tests share a mutable MockURLProtocol.requestHandler static,
+  which raced under parallel execution (surfaced as flaky failures, confirmed by a Swift 6
+  concurrency warning on the captured var).
+
+  Build verified: `xcodebuild build` and `xcodebuild test` both green on iPhone 16 Simulator (all
+  15 new unit tests + the 2 template tests pass).

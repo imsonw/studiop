@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		1AA7C13450907F4DEFF7045A /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = D1DDBAC53AC79E1A30C141E3 /* Dependencies */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		F36108BB3005DA4100000DC7 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1AA7C13450907F4DEFF7045A /* Dependencies in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = studiop;
 			packageProductDependencies = (
+				D1DDBAC53AC79E1A30C141E3 /* Dependencies */,
 			);
 			productName = studiop;
 			productReference = F36108AA3005DA4000000DC7 /* studiop.app */;
@@ -134,8 +140,6 @@
 				F36108BD3005DA4100000DC7 /* studiopTests */,
 			);
 			name = studiopTests;
-			packageProductDependencies = (
-			);
 			productName = studiopTests;
 			productReference = F36108BA3005DA4100000DC7 /* studiopTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -157,8 +161,6 @@
 				F36108C73005DA4100000DC7 /* studiopUITests */,
 			);
 			name = studiopUITests;
-			packageProductDependencies = (
-			);
 			productName = studiopUITests;
 			productReference = F36108C43005DA4100000DC7 /* studiopUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -195,6 +197,9 @@
 			);
 			mainGroup = F36108A13005DA4000000DC7;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A4DFC574145943968CB326D6 /* XCRemoteSwiftPackageReference "swift-dependencies" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F36108AB3005DA4000000DC7 /* Products */;
 			projectDirPath = "";
@@ -593,6 +598,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A4DFC574145943968CB326D6 /* XCRemoteSwiftPackageReference "swift-dependencies" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-dependencies";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.9.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D1DDBAC53AC79E1A30C141E3 /* Dependencies */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A4DFC574145943968CB326D6 /* XCRemoteSwiftPackageReference "swift-dependencies" */;
+			productName = Dependencies;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = F36108A23005DA4000000DC7 /* Project object */;
 }
