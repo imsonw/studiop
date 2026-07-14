@@ -56,21 +56,35 @@ code.
 Studiop/
   Core/            NetworkClient, Environment, KeychainStore
   Domain/
-    Entities/       one file per entity (User, LiveStream, Product, Order, ...)
-    Repositories/    one protocol per domain from api-reference.md
-    UseCases/
+    Auth/          Entities/ Repositories/ UseCases/  (Auth, Biometric, User, Address, Notification)
+    Live/          Entities/ Repositories/ UseCases/  (Stream, Studio)
+    Games/         Entities/ Repositories/ UseCases/  (Blackjack, Lucky Wheel)
+    Commerce/      Entities/ Repositories/ UseCases/  (Store, Order, Payment, Review)
+    Chat/          Entities/ Repositories/ UseCases/  (Chat, Media, StaticContent, Location)
   Data/
-    Network/        RemoteXRepository implementations (REST)
-    Firebase/        FirebaseLiveRoomDataSource, FirebaseReactionDataSource, ...
-    Ably/            AblyChatDataSource
-    DTOs/
-    DependencyKeys/  one swift-dependencies `DependencyKey` + `DependencyValues` extension per
-                     repository protocol, wiring it to its live implementation (and a `.testValue`/
-                     `.previewValue` for SwiftUI previews and tests)
+    <Feature>/
+      Network/       RemoteXRepository implementations (REST)
+      Firebase/       FirebaseLiveRoomDataSource, FirebaseReactionDataSource, ... (Live only)
+      Ably/           AblyChatDataSource (Chat only)
+      DTOs/
+      DependencyKeys/ one swift-dependencies `DependencyKey` + `DependencyValues` extension per
+                      repository protocol, wiring it to its live implementation (and a `.testValue`/
+                      `.previewValue` for SwiftUI previews and tests)
   Features/
     Auth/ Home/ Live/ Stream/ Store/ Cart/ Order/ Chat/ ...
       View, ViewModel (reads dependencies via `@Dependency`), (feature-local) Coordinator
 ```
+
+**Domain is organized by feature, not by type** (revised after Sprint 2 — originally this doc
+suggested a flat `Domain/Entities/`, `Domain/Repositories/`, `Domain/UseCases/` split across all 16
+repository domains at once). Reasoning: the architectural rule Clean Architecture actually enforces
+is dependency *direction* (Domain imports nothing from Data/Core), not folder layout — grouping by
+type vs by feature are equally valid under that rule. By-type was fine for Sprint 2's one-shot,
+parallel build of all 16 domains at once, but a single flat `UseCases/` folder was already at 92
+files after just one sprint; grouping by feature keeps each folder's file count bounded as more
+sprints add to it, and gives each feature a natural boundary for a future local Swift Package if the
+team wants compiler-enforced isolation between features later. `Data/` should follow the same
+per-feature grouping once Sprint 3 builds it, for consistency.
 
 Split Core/Domain/Data into local Swift Package targets if the team wants compiler-enforced
 layering (importing Data from a View simply won't compile); a single target with folder discipline
