@@ -47,4 +47,26 @@ enum NetworkError: Error {
     case sessionInvalidated
     case http(status: Int, body: Data)
     case transport(String)
+    /// This backend reports business failures via `{"status": 0, "msg": "..."}` on an otherwise
+    /// `200 OK` response (confirmed against real captured traffic, e.g. login with a missing
+    /// field) — not via the HTTP status code. `message` is the backend's own `msg`, safe to show
+    /// directly to the user.
+    case apiError(message: String)
+}
+
+extension NetworkError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "Invalid request URL."
+        case .sessionInvalidated:
+            return "Your session has expired. Please log in again."
+        case .http(let status, _):
+            return "Server error (\(status))."
+        case .transport(let message):
+            return message
+        case .apiError(let message):
+            return message
+        }
+    }
 }

@@ -1,0 +1,102 @@
+sprint_goal: >
+  Vertical slice: wire Auth end-to-end (Login screen -> AuthRepository.login -> token to Keychain
+  -> UserRepository.fetchUserInfo -> navigate to an empty Home shell) to prove the
+  Presentation/Domain/Data/Core boundary works end-to-end against the real backend before any
+  further feature sprints build on top of it. Domain (LoginUseCase, FetchUserInfoUseCase) and Data
+  (AuthRepositoryImpl, UserRepositoryImpl, their DependencyKeys) already exist from Sprint 2/3 —
+  this sprint is Presentation-only: build the screen, the ViewModel that composes the two
+  UseCases, and the root navigation that switches Login -> Home.
+
+backlog:
+  - id: F-010
+    title: Login vertical slice
+    description: >
+      Login screen -> AuthRepository.login -> token to Keychain -> UserRepository.info ->
+      navigate to an empty Home shell. Proves all four layers talk to each other before building
+      out features.
+    acceptance_criteria:
+      - "Login screen has email + password fields and a submit action; submit is disabled while a
+        request is in flight."
+      - "Submit calls LoginUseCase(repository: authRepository), which calls
+        AuthRepository.login(email:password:) -> AuthSession, per Sprint 3's AuthRepositoryImpl."
+      - "On successful login, AuthSession.token is persisted via KeychainStoring.writeToken (the
+        Core dependency from Sprint 1) before anything else happens, so every subsequent
+        NetworkClient call automatically attaches it via the .userToken case in
+        URLSessionNetworkClient.token(for:)."
+      - "After the token is stored, FetchUserInfoUseCase(repository: userRepository) is called to
+        confirm the token is accepted by a real authenticated endpoint (/users/info) — this is the
+        step that actually proves the vertical slice, not just that login itself succeeded."
+      - "On FetchUserInfoUseCase success, the app navigates to an empty Home shell (a placeholder
+        view — no bottom tabs, no real content; that's Sprint 8's F-028)."
+      - "On failure at either step (login error or fetchUserInfo error), the Login screen shows an
+        inline error message and does not navigate. A fetchUserInfo failure after a successful
+        login is a real edge case (token accepted by NetworkClient's own checks but backend still
+        rejects /users/info) — surface it as an error on the Login screen same as a login failure;
+        do not silently retry or invent a refresh flow (none exists per docs/api-reference.md)."
+      - "All three dependencies (authRepository, userRepository, keychainStore) are read in the
+        ViewModel via @Dependency — no manual composition root, no singleton, no container
+        library."
+      - "The template SwiftData boilerplate in studiopApp.swift (Item model, ModelContainer) is
+        removed since it's unrelated placeholder code from the Xcode template — this is NOT the
+        app's local-persistence decision (SwiftData vs. Keychain/UserDefaults+cache is still an
+        open decision per docs/architecture.md line 19-22); this sprint does not need local
+        persistence beyond the Keychain token, so the decision stays open."
+
+tasks:
+  - id: TASK-1
+    owner: DEV
+    description: >
+      Build LoginViewModel (@Observable): @Dependency(\.authRepository), @Dependency(\.userRepository),
+      @Dependency(\.keychainStore); constructs LoginUseCase and FetchUserInfoUseCase from the
+      injected repositories. Exposes email/password bindings, an isLoading flag, an errorMessage,
+      and an async login() that runs the full chain (login -> write token -> fetch user info) and
+      sets a didAuthenticate flag on success per the acceptance criteria above.
+    depends_on: []
+
+  - id: TASK-2
+    owner: DEV
+    description: >
+      Build LoginView (SwiftUI): email/password fields bound to LoginViewModel, submit button
+      disabled while isLoading, inline error text bound to errorMessage.
+    depends_on: [TASK-1]
+
+  - id: TASK-3
+    owner: DEV
+    description: >
+      Build an empty HomeView placeholder (no content/tabs yet — just enough to prove navigation
+      landed post-login; real tab shell is Sprint 8's F-028).
+    depends_on: []
+
+  - id: TASK-4
+    owner: DEV
+    description: >
+      Replace studiopApp.swift's template body (ContentView + SwiftData ModelContainer/Item) with
+      a root view that shows LoginView and switches to HomeView when LoginViewModel's
+      didAuthenticate flips true. Remove the now-unused Item.swift/ContentView.swift template
+      files. Do not add a "restore session from Keychain at launch" auto-login path — out of this
+      sprint's stated scope; flag it as a candidate for a future sprint instead of building it
+      silently.
+    depends_on: [TASK-2, TASK-3]
+
+  - id: TASK-5
+    owner: DEV
+    description: >
+      Unit tests for LoginViewModel using fake AuthRepository/UserRepository/KeychainStoring
+      (mirroring the Fake pattern already used in studiopTests/Auth/). Cover: (1) happy path —
+      token written before fetchUserInfo is called, didAuthenticate true; (2) login failure —
+      errorMessage set, keychainStore.writeToken never called, didAuthenticate stays false; (3)
+      fetchUserInfo failure after a successful login — errorMessage set, didAuthenticate stays
+      false.
+    depends_on: [TASK-1]
+
+  - id: TASK-6
+    owner: QA
+    description: >
+      Run the full QA checklist (static analysis build, formatting, convention audit, re-run
+      xcodebuild test) against Sprint 4. Convention audit should specifically confirm: (a)
+      LoginViewModel has zero manual DI / composition root, only @Dependency; (b) Domain layer
+      (LoginUseCase, FetchUserInfoUseCase) was not modified and still has no networking/Firebase/
+      Ably imports; (c) the token-to-Keychain write happens before fetchUserInfo is called, not
+      after or in parallel; (d) no new local-persistence mechanism (SwiftData/UserDefaults) was
+      introduced beyond removing the template's unused Item/ModelContainer.
+    depends_on: [TASK-4, TASK-5]

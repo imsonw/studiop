@@ -9,6 +9,7 @@ import Foundation
 /// `@Environment` property wrapper, which lives in the same module namespace.
 struct AppEnvironment: Sendable, Equatable {
     enum Kind: String, Sendable {
+        case local
         case staging
         case production
     }
@@ -32,6 +33,44 @@ extension AppEnvironment {
         apiBaseURL: URL(string: "https://service.PLACEHOLDER-BACKEND-DOMAIN-ALT.example/api")!,
         firebaseRealtimeDatabaseURL: URL(string: "https://PLACEHOLDER-prod-default-rtdb.firebaseio.com")!
     )
+
+    /// The real, developer-machine-only override file this app reads at runtime — a sibling of
+    /// this source file. Exposed separately from `local` so tests can point `local(configURL:)`
+    /// at a throwaway temp file instead of ever touching this real path.
+    static var localConfigURL: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("local-environment.json")
+    }
+
+    /// Personal, developer-machine-only backend override — read from a gitignored JSON file
+    /// sitting next to this source file (see `local-environment.example.json` for the shape).
+    /// `nil` when that file doesn't exist, so every other developer's build is unaffected.
+    static var local: AppEnvironment? {
+        local(configURL: localConfigURL)
+    }
+
+    static func local(configURL: URL) -> AppEnvironment? {
+        struct LocalConfig: Decodable {
+            let apiBaseURL: String
+            let firebaseRealtimeDatabaseURL: String?
+        }
+
+        guard
+            let data = try? Data(contentsOf: configURL),
+            let config = try? JSONDecoder().decode(LocalConfig.self, from: data),
+            let apiURL = URL(string: config.apiBaseURL)
+        else {
+            return nil
+        }
+
+        return AppEnvironment(
+            kind: .local,
+            apiBaseURL: apiURL,
+            firebaseRealtimeDatabaseURL: config.firebaseRealtimeDatabaseURL.flatMap(URL.init)
+                ?? AppEnvironment.staging.firebaseRealtimeDatabaseURL
+        )
+    }
 }
 
 /// Holds the current `AppEnvironment` and lets it be re-resolved after a Firebase Remote Config
@@ -66,7 +105,7 @@ final class EnvironmentStore: @unchecked Sendable {
 private enum EnvironmentStoreKey: DependencyKey {
     static let liveValue: EnvironmentStore = {
         #if DEBUG
-        EnvironmentStore(initial: .staging)
+        EnvironmentStore(initial: .local ?? .staging)
         #else
         EnvironmentStore(initial: .production)
         #endif

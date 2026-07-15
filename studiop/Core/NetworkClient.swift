@@ -55,6 +55,10 @@ final class URLSessionNetworkClient: NetworkClient {
             throw NetworkError.sessionInvalidated
         }
 
+        if httpResponse.statusCode == 200, let apiErrorMessage = businessFailureMessage(in: data) {
+            throw NetworkError.apiError(message: apiErrorMessage)
+        }
+
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw NetworkError.http(status: httpResponse.statusCode, body: data)
         }
@@ -83,6 +87,9 @@ final class URLSessionNetworkClient: NetworkClient {
         urlRequest.httpMethod = request.method.rawValue
         urlRequest.httpBody = request.body
         urlRequest.setValue(currentLanguageCode(), forHTTPHeaderField: "lang")
+        if request.body != nil {
+            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         for (field, value) in request.headers {
             urlRequest.setValue(value, forHTTPHeaderField: field)
         }
@@ -116,6 +123,22 @@ final class URLSessionNetworkClient: NetworkClient {
         return haystacks.contains { haystack in
             haystack.contains("token") && invalidityKeywords.contains { haystack.contains($0) }
         }
+    }
+
+    /// Detects this backend's general `{"status": 0, "msg": "..."}` failure envelope on an
+    /// otherwise `200 OK` response — confirmed against real captured traffic (e.g. a login
+    /// attempt with a missing field returns 200 with `status: 0`). Runs after the more specific
+    /// invalid-token check above, which also clears the Keychain; this one doesn't, since a
+    /// generic business failure (e.g. "Please enter your Email.") isn't a session problem.
+    private func businessFailureMessage(in data: Data) -> String? {
+        guard
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let status = json["status"] as? Int, status == 0,
+            let message = json["msg"] as? String
+        else {
+            return nil
+        }
+        return message
     }
 }
 

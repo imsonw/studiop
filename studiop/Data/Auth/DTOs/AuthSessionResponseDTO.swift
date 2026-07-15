@@ -1,13 +1,13 @@
 import Foundation
 
-/// Response shape for register/login/social-login.
-/// - Note: docs/api-reference.md documents these endpoints' request bodies but not the literal
-///   response JSON — this `{token, user}` shape is a best guess pending backend confirmation.
+/// Response shape for register/login/social-login. Confirmed against a real captured
+/// `/users/login` response (200, `{status, code, msg, data, token}`) — the user object is under
+/// `data`, not `user`.
 struct AuthSessionResponseDTO: Decodable {
     let token: String
-    let user: UserDTO
+    let data: UserDTO
 
     func toDomain() -> AuthSession {
-        AuthSession(user: user.toDomain(), token: token)
+        AuthSession(user: data.toDomain(), token: token)
     }
 }

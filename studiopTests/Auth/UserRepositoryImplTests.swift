@@ -2,17 +2,23 @@ import Foundation
 import Testing
 @testable import studiop
 
+// Shape confirmed against a real captured `/users/info` response (200 OK): the user object is
+// wrapped under `data`, same envelope as `/users/login`; `id_encode` is a JSON number.
 private let cannedUserJSON = """
 {
-    "id": 1,
-    "id_encode": "abc123",
-    "name": "Jane Doe",
-    "email": "jane@example.com",
-    "phone": "0123456789",
-    "avatar": null,
-    "company_name": null,
-    "tax_code": null,
-    "social_provider": null
+    "status": 1,
+    "msg": "Get info Success.",
+    "data": {
+        "id": 1,
+        "id_encode": 123,
+        "name": "Jane Doe",
+        "email": "jane@example.com",
+        "phone": "0123456789",
+        "avatar": null,
+        "company_name": null,
+        "tax_code": null,
+        "social_provider": null
+    }
 }
 """
 
@@ -33,7 +39,7 @@ struct UserRepositoryImplTests {
         #expect(request.method == .get)
         #expect(request.authentication == .userToken)
         #expect(user.email == "jane@example.com")
-        #expect(user.idEncode == "abc123")
+        #expect(user.idEncode == "123")
     }
 
     @Test func changePasswordSendsSnakeCaseFieldNames() async throws {
@@ -106,5 +112,47 @@ struct UserRepositoryImplTests {
         await #expect(throws: Error.self) {
             _ = try await sut.fetchUserInfo()
         }
+    }
+
+    // Verbatim real `/users/info` response (200 OK) captured from staging — regression test for
+    // the `{data}` wrapper, confirming it matches `/users/login`'s envelope.
+    @Test func fetchUserInfoDecodesARealCapturedResponse() async throws {
+        let realResponseJSON = """
+        {
+          "status": 1,
+          "msg": "Get info Success.",
+          "data": {
+            "id": 14915,
+            "id_encode": 2079435752,
+            "code": "U00014915",
+            "username": "19_yopmail_com",
+            "name": "Nam",
+            "email": "19@yopmail.com",
+            "status": 1,
+            "delete_code": null,
+            "deleted_reason": null,
+            "avatar": "https://cdn.action89.eu/devstream/thumb/200_200_fit/27fb2fe965c1139f14de65cf31aed033.webp",
+            "gender": null,
+            "whatsapp": null,
+            "phone": "94949",
+            "active": 1,
+            "company": null,
+            "shipping_address": null,
+            "tiktok_username": null,
+            "vat_id": null,
+            "role": "customer",
+            "is_studio": false,
+            "nickname": "2079435752"
+          }
+        }
+        """
+        let fakeNetworkClient = FakeNetworkClient()
+        fakeNetworkClient.dataToReturn = Data(realResponseJSON.utf8)
+        let sut = UserRepositoryImpl(networkClient: fakeNetworkClient)
+
+        let user = try await sut.fetchUserInfo()
+
+        #expect(user.idEncode == "2079435752")
+        #expect(user.email == "19@yopmail.com")
     }
 }

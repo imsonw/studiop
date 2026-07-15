@@ -57,6 +57,17 @@ client's `lib/config.dart` for the literal current staging/prod URLs).
 
 External (not backend): `GET https://oauth2.googleapis.com/tokeninfo?id_token=...`
 
+**Response envelope (confirmed against two independent real captured responses, Sprint 4 —
+`/users/login` and `/users/info`):** every response — success or failure — is HTTP `200`, shaped
+`{status: 1|0, code?, msg, data?, token?}`. `status: 0` means failure; the human-readable reason is
+in `msg` (e.g. `"Please enter your Email."`) — the HTTP status code alone is **not** a reliable
+success/failure signal for this backend. On success, the payload is under `data` (not `user` as
+originally guessed for login), and `data.id_encode` is a JSON **number**, not a string. Confirmed
+independently on two different endpoints in the same domain (Auth, User) — treated as this
+backend's general convention. `UserRepository`'s `changeUserInfo`/`changeUserProfile` responses
+are decoded the same way (`DataResponseDTO<UserDTO>`) by extension of this confirmed pattern, but
+haven't individually been captured against real traffic yet — verify if either misbehaves.
+
 ## `BiometricRepository`
 
 | Method | Path | Body / Query | Notes |

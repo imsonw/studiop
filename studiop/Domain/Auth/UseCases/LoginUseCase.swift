@@ -8,6 +8,9 @@ struct LoginUseCase {
     }
 
     func callAsFunction(email: String, password: String) async throws -> AuthSession {
-        try await repository.login(email: email, password: password)
+        if let error = AuthFieldValidator.validateEmail(email) {
+            throw error
+        }
+        return try await repository.login(email: email, password: password)
     }
 }

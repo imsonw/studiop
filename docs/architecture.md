@@ -62,6 +62,12 @@ Studiop/
     Commerce/      Entities/ Repositories/ UseCases/  (Store, Order, Payment, Review)
     Chat/          Entities/ Repositories/ UseCases/  (Chat, Media, StaticContent, Location)
   Data/
+    Shared/
+      DTOs/           Feature-agnostic wrappers reused across domains — e.g. `DataResponseDTO<T>`
+                      for this backend's general `{"data": ...}` success envelope (confirmed
+                      Sprint 4, see api-reference.md's Auth mechanism section). Anything that
+                      doesn't mention a specific domain's fields belongs here, not in a feature
+                      folder.
     <Feature>/
       Network/       RemoteXRepository implementations (REST)
       Firebase/       FirebaseLiveRoomDataSource, FirebaseReactionDataSource, ... (Live only)

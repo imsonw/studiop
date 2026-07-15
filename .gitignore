@@ -12,3 +12,6 @@ DerivedData/
 
 # macOS
 .DS_Store
+
+# Local dev environment overrides (personal, never shared — see Core/local-environment.example.json)
+studiop/Core/local-environment.json

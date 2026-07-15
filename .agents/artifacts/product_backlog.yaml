@@ -98,7 +98,7 @@ sprints:
     goal: >
       Vertical slice: wire Auth end-to-end (login -> Keychain -> /users/info -> empty Home)
       to prove all four layers talk to each other before building out features.
-    status: pending
+    status: completed
     features:
       - id: F-010
         title: Login vertical slice

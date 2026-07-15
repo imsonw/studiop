@@ -1,11 +1,12 @@
 import Foundation
 
-/// The `/users/info` response shape, and the nested `user` object in the auth session response.
-/// - Note: docs/api-reference.md documents the endpoint but not the literal JSON field names —
-///   this is a best-guess snake_case shape pending confirmation with the backend team.
+/// The `/users/info` response shape, and the nested `data` object in the auth session response.
+/// `idEncode` confirmed as a JSON number (not string) against a real captured `/users/login`
+/// response — `User.idEncode` (Domain) stays `String`, since Domain doesn't mirror backend JSON
+/// types exactly; the conversion happens in `toDomain()`.
 struct UserDTO: Decodable {
     let id: Int
-    let idEncode: String
+    let idEncode: Int
     let name: String
     let email: String
     let phone: String?
@@ -26,7 +27,7 @@ struct UserDTO: Decodable {
     func toDomain() -> User {
         User(
             id: id,
-            idEncode: idEncode,
+            idEncode: String(idEncode),
             name: name,
             email: email,
             phone: phone,

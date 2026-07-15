@@ -11,7 +11,7 @@ final class UserRepositoryImpl: UserRepository {
 
     func fetchUserInfo() async throws -> User {
         let data = try await networkClient.send(NetworkRequest(path: "users/info"))
-        return try JSONDecoder().decode(UserDTO.self, from: data).toDomain()
+        return try JSONDecoder().decode(DataResponseDTO<UserDTO>.self, from: data).data.toDomain()
     }
 
     func changePassword(currentPassword: String, newPassword: String) async throws {
@@ -26,7 +26,7 @@ final class UserRepositoryImpl: UserRepository {
         let data = try await networkClient.send(
             NetworkRequest(path: "users/change/info", method: .post, body: try JSONEncoder().encode(dto))
         )
-        return try JSONDecoder().decode(UserDTO.self, from: data).toDomain()
+        return try JSONDecoder().decode(DataResponseDTO<UserDTO>.self, from: data).data.toDomain()
     }
 
     func changeUserProfile(
@@ -48,7 +48,7 @@ final class UserRepositoryImpl: UserRepository {
         let data = try await networkClient.send(
             NetworkRequest(path: "users/change/profile", method: .post, body: try JSONEncoder().encode(dto))
         )
-        return try JSONDecoder().decode(UserDTO.self, from: data).toDomain()
+        return try JSONDecoder().decode(DataResponseDTO<UserDTO>.self, from: data).data.toDomain()
     }
 
     func changeUserAddress(mainAddress: Address, shippingAddress: Address?) async throws {

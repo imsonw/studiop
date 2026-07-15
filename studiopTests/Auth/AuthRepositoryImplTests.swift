@@ -2,12 +2,16 @@ import Foundation
 import Testing
 @testable import studiop
 
+// Shape confirmed against a real captured `/users/login` response (200 OK): the user object is
+// under `data`, not `user`; `id_encode` is a JSON number, not a string.
 private let cannedAuthSessionJSON = """
 {
-    "token": "session-token",
-    "user": {
+    "status": 1,
+    "code": "U200",
+    "msg": "Logged in successfully.",
+    "data": {
         "id": 1,
-        "id_encode": "abc123",
+        "id_encode": 123,
         "name": "Jane Doe",
         "email": "jane@example.com",
         "phone": "0123456789",
@@ -15,7 +19,8 @@ private let cannedAuthSessionJSON = """
         "company_name": null,
         "tax_code": null,
         "social_provider": null
-    }
+    },
+    "token": "session-token"
 }
 """
 
@@ -37,7 +42,7 @@ struct AuthRepositoryImplTests {
         #expect(request.authentication == .publicToken)
         #expect(session.token == "session-token")
         #expect(session.user.email == "jane@example.com")
-        #expect(session.user.idEncode == "abc123")
+        #expect(session.user.idEncode == "123")
     }
 
     @Test func registerSendsRegistrationFieldsAsBody() async throws {
@@ -129,5 +134,50 @@ struct AuthRepositoryImplTests {
         await #expect(throws: Error.self) {
             _ = try await sut.login(email: "jane@example.com", password: "hunter2")
         }
+    }
+
+    // Verbatim real `/users/login` response (200 OK) captured from staging — regression test for
+    // the `{data}` (not `{user}`) wrapper and `id_encode` being a JSON number, not a string.
+    @Test func loginDecodesARealCapturedSuccessResponse() async throws {
+        let realResponseJSON = """
+        {
+          "status": 1,
+          "code": "U200",
+          "msg": "Logged in successfully.",
+          "data": {
+            "id": 14915,
+            "id_encode": 2079435752,
+            "code": "U00014915",
+            "username": "19_yopmail_com",
+            "name": "Nam",
+            "email": "19@yopmail.com",
+            "status": 1,
+            "delete_code": null,
+            "deleted_reason": null,
+            "avatar": "https://cdn.action89.eu/devstream/thumb/200_200_fit/27fb2fe965c1139f14de65cf31aed033.webp",
+            "gender": null,
+            "whatsapp": null,
+            "phone": "94949",
+            "active": 1,
+            "company": null,
+            "shipping_address": null,
+            "tiktok_username": null,
+            "vat_id": null,
+            "role": "customer",
+            "is_studio": false,
+            "nickname": "2079435752"
+          },
+          "token": "u6cd426e6-6562-42a4-9db6-7ffa472600e6"
+        }
+        """
+        let fakeNetworkClient = FakeNetworkClient()
+        fakeNetworkClient.dataToReturn = Data(realResponseJSON.utf8)
+        let sut = AuthRepositoryImpl(networkClient: fakeNetworkClient)
+
+        let session = try await sut.login(email: "19@yopmail.com", password: "123456789")
+
+        #expect(session.token == "u6cd426e6-6562-42a4-9db6-7ffa472600e6")
+        #expect(session.user.idEncode == "2079435752")
+        #expect(session.user.email == "19@yopmail.com")
     }
 }

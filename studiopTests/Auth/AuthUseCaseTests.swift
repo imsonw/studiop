@@ -105,6 +105,16 @@ struct AuthUseCaseTests {
         #expect(result == fake.authSessionToReturn)
     }
 
+    @Test func loginThrowsValidationErrorForInvalidEmailWithoutCallingRepository() async throws {
+        let fake = FakeAuthRepository()
+        let useCase = LoginUseCase(repository: fake)
+
+        await #expect(throws: AuthValidationError.invalidEmailFormat) {
+            _ = try await useCase(email: "not-an-email", password: "secret")
+        }
+        #expect(fake.lastLogin == nil)
+    }
+
     @Test func verifyAccountForwardsEmailAndCode() async throws {
         let fake = FakeAuthRepository()
         let useCase = VerifyAccountUseCase(repository: fake)

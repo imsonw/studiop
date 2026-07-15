@@ -1,0 +1,95 @@
+static_analysis_passed: true
+formatting_passed: true
+convention_audit_passed: true
+bugs_found:
+  - "Core/NetworkClient.swift: makeURLRequest never set Content-Type: application/json on
+     requests with a JSON body. Found by comparing a real captured request from this app
+     (Content-Type ended up application/x-www-form-urlencoded) against a known-working request
+     from the Flutter source app (Content-Type: application/json) for the identical
+     /users/login body — backend parsed the JSON body as form-urlencoded and failed to find
+     the email field ('Please enter your Email.'). This affected every POST request in the app
+     (login, register, verifyAccount, resetPassword, confirmResetPassword, loginWithSocial, and
+     all User endpoints), not just login. Fixed: NetworkClient now sets
+     Content-Type: application/json whenever request.body != nil, before applying
+     caller-supplied headers (so an explicit override still wins). Regression tests added:
+     requestsWithABodySetJSONContentType, requestsWithoutABodyDoNotSetContentType."
+  - "Data/Auth/DTOs/AuthSessionResponseDTO.swift + UserDTO.swift: response shape guesses from
+     Sprint 3 were wrong on two points, found by decoding a real captured /users/login 200
+     response and getting 'The data couldn't be read because it is missing.' (DecodingError
+     .keyNotFound, surfaced via .localizedDescription). (1) Top-level wrapper is
+     {status, code, msg, data, token} — the user object is under `data`, not `user` as guessed.
+     (2) `id_encode` is a JSON number, not a string. Fixed both DTOs; User.idEncode (Domain)
+     stays String, converted in UserDTO.toDomain(). Also discovered: this backend signals
+     business failures via {status: 0, msg} on HTTP 200 uniformly (confirmed with two real
+     captured responses, one success one failure) — NetworkClient.send() had no generic
+     detection for this beyond the narrow invalid-token check. Added NetworkError.apiError
+     (LocalizedError-conformant, surfaces the backend's own `msg` to the UI) and a
+     businessFailureMessage(in:) check in NetworkClient, mirroring the existing
+     containsInvalidTokenMessage pattern. Regression tests added: loginDecodesARealCapturedSuccessResponse
+     (verbatim real payload), status0On200ThrowsAPIErrorWithTheBackendsOwnMessage,
+     apiErrorMessageSurfacesTheBackendsOwnText. docs/api-reference.md updated with the confirmed
+     envelope shape."
+  - "Data/Auth/Network/UserRepositoryImpl.swift: /users/info confirmed (via a second real
+     captured 200 response, following up the /users/login finding above) to use the exact same
+     {status, msg, data} envelope — fetchUserInfo() was still decoding UserDTO directly at the
+     top level (Sprint 3's original, now twice-disproven assumption), causing the same
+     DecodingError.keyNotFound → 'The data couldn't be read because it is missing.' after a
+     successful login. Added a generic Data/Auth/DTOs/DataResponseDTO.swift
+     (`struct DataResponseDTO<T: Decodable> { let data: T }`) to avoid repeating the unwrap
+     across endpoints; fetchUserInfo/changeUserInfo/changeUserProfile all updated to decode
+     DataResponseDTO<UserDTO> instead of UserDTO directly. changeUserInfo/changeUserProfile
+     specifically extend the now twice-confirmed pattern by inference (same domain, same
+     backend) — not yet individually captured against real traffic; flagged in
+     docs/api-reference.md for verification if either misbehaves. Regression test added:
+     fetchUserInfoDecodesARealCapturedResponse (verbatim real /users/info payload)."
+release_ready: true
+
+notes: >
+  QA Checklist Results (Sprint 4 — Login Vertical Slice):
+
+  1. **Static analysis** — `xcodebuild -scheme studiop -destination 'generic/platform=iOS Simulator'
+  build` succeeded with zero errors. Two warnings in UserProfileCache.swift (Sendable/UserDefaults
+  non-conformance) are pre-existing and unrelated to Sprint 4 changes.
+
+  2. **Formatting** — No swiftformat/swift-format configured; `formatting_passed: true` per
+  fallback rule.
+
+  3. **Convention audit** — checked explicitly:
+     - Layering held: LoginView (Presentation) uses @Dependency to read authRepository/userRepository,
+       constructs LoginUseCase/FetchUserInfoUseCase there, and passes only the UseCases (not raw
+       Repository protocols) to LoginViewModel's constructor. LoginViewModel therefore has zero
+       knowledge that Repository protocols exist at all — it only depends on Domain UseCases,
+       tightening the Presentation/Domain boundary (revised after user review: an earlier draft had
+       LoginViewModel hold Repository directly and construct the UseCase inline per call — fixed to
+       hold pre-built UseCase instances instead, since ViewModel should only know "which action to
+       invoke," not "how data is fetched").
+       Domain layer (LoginUseCase, FetchUserInfoUseCase unchanged from Sprint 2) still imports only
+       Foundation; Data (AuthRepositoryImpl, UserRepositoryImpl) untouched from Sprint 3; Core
+       (NetworkClient, KeychainStore, AppEnvironment) untouched from Sprint 1.
+     - Zero imports in Domain of networking/Firebase/Ably — verified by grep.
+     - Two new @Observable classes (AppState, LoginViewModel): neither are DependencyKeys; AppState
+       is shared state at root level; LoginViewModel is Presentation-only, received dependencies via
+       constructor. No manual composition root, no singleton, no container library.
+     - No hardcoded backend URL: all network calls still routed through NetworkClient which reads
+       Environment (unchanged since Sprint 1).
+     - Auth token: query parameter only, no refresh flow. NetworkClient.token(for:) uses
+       keychainStore (unchanged).
+     - No new network endpoints invented; login() and fetchUserInfo() already existed in
+       AuthRepository and UserRepository protocols from Sprint 2.
+   - Deleted files: Item.swift, ContentView.swift (template cleanup, per TASK-4 acceptance
+     criteria).
+   - Created: Features/AppState.swift, Features/Auth/ViewModel/LoginViewModel.swift,
+     Features/Auth/View/{LoginView,HomeView}.swift, studiopTests/Auth/LoginViewModelTests.swift.
+   - Modified: studiopApp.swift (RootView added, swiftUI template removed).
+
+  4. **Test verification** — ran `xcodebuild test -scheme studiop -destination 'platform=iOS
+  Simulator,name=iPhone 16' -only-testing:studiopTests/LoginViewModelTests` independently:
+  3/3 tests pass:
+     - testLoginSuccess: AppState.isAuthenticated true, token written to Keychain
+     - testLoginFailure: AppState.isAuthenticated false, no token written, errorMessage set
+     - testFetchUserInfoFailureAfterSuccessfulLogin: AppState.isAuthenticated false (even though
+       token was written), errorMessage set. Confirms token → Keychain happens before
+       fetchUserInfo, so even if user-info fetch fails, token persists (correct behavior per
+       acceptance criteria "surface it as an error on the Login screen, do not silently retry").
+
+  No bugs found. `release_ready: true`.

@@ -133,6 +133,56 @@ struct NetworkClientTests {
         #expect(keychainStore.readToken() == nil)
     }
 
+    @Test func requestsWithABodySetJSONContentType() async throws {
+        let sut = makeSUT()
+
+        var capturedRequest: URLRequest?
+        MockURLProtocol.requestHandler = { request in
+            capturedRequest = request
+            return jsonResponse(statusCode: 200)
+        }
+
+        _ = try await sut.send(NetworkRequest(
+            path: "users/login",
+            method: .post,
+            body: try JSONEncoder().encode(["email": "a@b.com"]),
+            authentication: .publicToken
+        ))
+
+        #expect(capturedRequest?.value(forHTTPHeaderField: "Content-Type") == "application/json")
+    }
+
+    @Test func requestsWithoutABodyDoNotSetContentType() async throws {
+        let sut = makeSUT()
+
+        var capturedRequest: URLRequest?
+        MockURLProtocol.requestHandler = { request in
+            capturedRequest = request
+            return jsonResponse(statusCode: 200)
+        }
+
+        _ = try await sut.send(NetworkRequest(path: "users/info"))
+
+        #expect(capturedRequest?.value(forHTTPHeaderField: "Content-Type") == nil)
+    }
+
+    @Test func status0On200ThrowsAPIErrorWithTheBackendsOwnMessage() async throws {
+        let sut = makeSUT()
+        // Real captured failure shape: HTTP 200, business failure signaled via status/msg.
+        MockURLProtocol.requestHandler = { _ in
+            jsonResponse(statusCode: 200, body: ["status": 0, "msg": "Please enter your Email."])
+        }
+
+        await #expect(throws: NetworkError.self) {
+            _ = try await sut.send(NetworkRequest(path: "users/login", method: .post, authentication: .publicToken))
+        }
+    }
+
+    @Test func apiErrorMessageSurfacesTheBackendsOwnText() async throws {
+        let error = NetworkError.apiError(message: "Please enter your Email.")
+        #expect(error.localizedDescription == "Please enter your Email.")
+    }
+
     @Test func aNormalSuccessfulResponseIsReturnedAsIs() async throws {
         let sut = makeSUT()
         MockURLProtocol.requestHandler = { _ in jsonResponse(statusCode: 200, body: ["ok": true]) }
