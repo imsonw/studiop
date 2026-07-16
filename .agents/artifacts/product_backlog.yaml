@@ -15,12 +15,27 @@ description: >
   real backend once, before committing to it across the other 14 domains. Reason: docs/api-
   reference.md was reverse-engineered from the Flutter client, not confirmed with the backend
   team — if Sprint 4 surfaces a systemic mapping issue, only 2 domains need rework instead of 16.
-  Every later feature sprint (5, 6, 7, 9, 10, 11, ...) is expected to include its own "build
-  RepositoryImpl + DependencyKey for domain X" DEV tasks immediately before that sprint's
-  Presentation/UI work, for whichever Repository protocols that sprint's features need and Data
-  layer doesn't cover yet — do not assume Data layer is already done for a domain just because
-  Domain (protocols) exists for it. `Data/` mirrors `Domain/`'s per-feature folder layout
-  (`Data/Auth/`, `Data/Commerce/`, ...), confirmed 2026-07-15 — see docs/architecture.md.
+  Every later feature sprint is expected to include its own "build RepositoryImpl +
+  DependencyKey for domain X" DEV tasks immediately before that sprint's Presentation/UI work,
+  for whichever Repository protocols that sprint's features need and Data layer doesn't cover
+  yet — do not assume Data layer is already done for a domain just because Domain (protocols)
+  exists for it. `Data/` mirrors `Domain/`'s per-feature folder layout (`Data/Auth/`,
+  `Data/Commerce/`, ...), confirmed 2026-07-15 — see docs/architecture.md.
+
+  Sprint 5 scope narrowed on 2026-07-15 (confirmed with the user), same reasoning as the Sprint 3
+  narrowing above: the original Sprint 5 backlog entry bundled 6 features (F-011 through F-016)
+  with very uneven Data-layer readiness. Verified against the actual codebase: AuthRepositoryImpl
+  already implements every AuthRepository method (register, login, verifyAccount, resetPassword,
+  confirmResetPassword, loginWithSocial) from Sprint 3, so F-011 and F-013 need zero new Data
+  layer work — Presentation only, same narrow-slice-first shape as Sprint 4. F-012 (Biometric)
+  has no Data layer at all yet (no BiometricRepositoryImpl). F-014's address book sub-feature
+  needs a new AddressRepositoryImpl (UserRepositoryImpl only covers changeUserAddress on the
+  User's own record, not the separate AddressRepository CRUD protocol). F-016 (feature-flag
+  toggle screen) depends on Firebase Remote Config feature-flag infrastructure that doesn't exist
+  until the former Sprint 12 (Cross-cutting hardening). Resolution: Sprint 5 is now F-011 + F-013
+  only; F-012/F-014/F-015 moved into a new Sprint 6; F-016 moved into the former Sprint 12
+  (renumbered Sprint 13) alongside F-045 (Feature flags), which it depends on. Every sprint
+  formerly numbered 6-14 is renumbered +1 (now 7-15) to make room.
 
 sprints:
   - sprint: 1
@@ -108,35 +123,48 @@ sprints:
           end-to-end.
 
   - sprint: 5
-    goal: Full Auth & Account feature set beyond the vertical slice.
-    status: pending
+    goal: >
+      Remaining Auth flows that need zero new Data layer work — narrowed on 2026-07-15 (see
+      top-level description) to just Registration/quick-login/email-verification/password-reset
+      and Social login, since AuthRepositoryImpl already implements every method both need.
+      Presentation-only, same shape as Sprint 4.
+    status: completed
     features:
       - id: F-011
         title: Registration, quick login, email verification, password reset
         description: Full auth flows per docs/features.md -> Auth & Account.
-      - id: F-012
-        title: Biometric login
-        description: >
-          Face ID/Touch ID, device_id + biometric_token pairing, enable/disable/check-status,
-          per docs/api-reference.md -> BiometricRepository.
       - id: F-013
         title: Social login
         description: >
           Google, Apple, TikTok, plus the post-social "collect email" screen when the
           provider doesn't supply one.
+
+  - sprint: 6
+    goal: >
+      Remaining Auth & Account feature set, deferred from Sprint 5 on 2026-07-15 because each
+      needs new Data layer work first: Biometric login (no BiometricRepositoryImpl exists yet),
+      Profile & address book (address book CRUD needs a new AddressRepositoryImpl —
+      UserRepositoryImpl's changeUserAddress only covers the user's own record, not the separate
+      AddressRepository protocol), and Account deletion & verification.
+    status: pending
+    features:
+      - id: F-012
+        title: Biometric login
+        description: >
+          Face ID/Touch ID, device_id + biometric_token pairing, enable/disable/check-status,
+          per docs/api-reference.md -> BiometricRepository. Needs a new BiometricRepositoryImpl
+          + DependencyKey before the Presentation work.
       - id: F-014
         title: Profile & address book
         description: >
-          View/edit profile, change password, change info, address book (list/create/update/
-          delete/set default, select-address bottom sheet).
+          View/edit profile, change password, change info (Presentation only — UserRepositoryImpl
+          already covers these), address book (list/create/update/delete/set default,
+          select-address bottom sheet — needs a new AddressRepositoryImpl + DependencyKey first).
       - id: F-015
         title: Account deletion & verification
         description: Request-with-reason + email-code confirm; separate account verification flow.
-      - id: F-016
-        title: Feature-flag toggle screen
-        description: Dev/QA-only tool for flipping Forum/Marketplace flags.
 
-  - sprint: 6
+  - sprint: 7
     goal: Store/Catalog + Cart/Checkout — highest business value, least technical risk.
     status: pending
     features:
@@ -161,7 +189,7 @@ sprints:
           Address selection, payment method, order creation, success screen, "buy now"
           (checkout without adding to cart first).
 
-  - sprint: 7
+  - sprint: 8
     goal: Orders, Payment, and Reviews.
     status: pending
     features:
@@ -179,7 +207,7 @@ sprints:
           Write review (star rating, photo/video upload, per line-item), view reviews
           (product + store/shop stats), "my reviews" not-yet-reviewed/reviewed tabs.
 
-  - sprint: 8
+  - sprint: 9
     goal: >
       Home/Dashboard and the bottom tab shell, composed from the Store/Order building blocks
       already built. Carries over two known-incomplete source-app screens as mock-data-only
@@ -205,7 +233,7 @@ sprints:
           Single detail screen backed by mock data only, per docs/features.md — no real
           endpoint exists; do not invent one.
 
-  - sprint: 9
+  - sprint: 10
     goal: >
       Live viewing & bidding — viewer side only per confirmed v1 scope (2026-07-14). Includes
       the Firebase RTDB data sources this feature needs (not built speculatively earlier).
@@ -236,15 +264,15 @@ sprints:
         title: Bid list overlay + leaderboard
         description: Read-only, computed server-side via live_stream_top_bid.
       - id: F-036
-        title: "Now selling" overlay
+        title: '"Now selling" overlay'
         description: >
           Branch on studio_live_log (Firebase, in-app) vs REST stream/log polling (web/social)
           per docs/api-reference.md selection rule — mirror both branches.
       - id: F-037
         title: Pre-live modal
-        description: "Coming soon" countdown, shop stats, media gallery, CTA button.
+        description: '"Coming soon" countdown, shop stats, media gallery, CTA button.'
 
-  - sprint: 10
+  - sprint: 11
     goal: Chat & Notifications.
     status: pending
     features:
@@ -260,7 +288,7 @@ sprints:
           FCM topic-based (public/per-platform/per-user), tap-through to detail, in-app
           notification list.
 
-  - sprint: 11
+  - sprint: 12
     goal: Mini-games.
     status: pending
     features:
@@ -273,8 +301,11 @@ sprints:
           Full card game, stats + score recording. Keep its entry point disabled in Home to
           mirror the source app (built, not exposed) unless the user says otherwise.
 
-  - sprint: 12
-    goal: Cross-cutting hardening across all features built so far.
+  - sprint: 13
+    goal: >
+      Cross-cutting hardening across all features built so far. Also picks up F-016
+      (feature-flag toggle screen, moved from the original Sprint 5 on 2026-07-15) since it
+      depends on this sprint's F-045 Feature-flag infrastructure.
     status: pending
     features:
       - id: F-042
@@ -291,16 +322,22 @@ sprints:
         description: >
           Mirror the Flutter FeatureFlag enum (forum, marketplace) via Firebase Remote
           Config, consumed through Environment.
+      - id: F-016
+        title: Feature-flag toggle screen
+        description: >
+          Dev/QA-only tool for flipping Forum/Marketplace flags. Depends on F-045 above —
+          moved here from the original Sprint 5 on 2026-07-15 since that infrastructure didn't
+          exist yet at that point in the roadmap.
       - id: F-046
         title: Forced app-update banner
         description: >
           app_update_enabled_*, app_update_min_version_name_*, app_update_store_url_* from
           Firebase Remote Config.
 
-  - sprint: 13
+  - sprint: 14
     goal: >
       Streaming (seller/broadcaster side) — deferred out of v1 per the RTMP scope decision
-      confirmed with the user on 2026-07-14. Low priority; revisit after Sprint 12 ships.
+      confirmed with the user on 2026-07-14. Low priority; revisit after Sprint 13 ships.
     status: pending
     features:
       - id: F-047
@@ -318,7 +355,7 @@ sprints:
           Network-instability detection, streamer-side bidder list, confirm-stop-live/
           confirm-stop-selling/confirm-web-session modals, image upload for stream/product.
 
-  - sprint: 14
+  - sprint: 15
     goal: >
       Community layer (Forum, Marketplace) — pinned last per the user's decision on
       2026-07-14: included in the backlog but low priority, since both are off by feature

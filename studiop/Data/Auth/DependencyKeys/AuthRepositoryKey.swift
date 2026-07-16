@@ -6,11 +6,12 @@ private struct UnimplementedAuthRepository: AuthRepository {
 
     func register(
         name: String,
+        firstName: String,
         email: String,
         password: String,
         passwordConfirmation: String,
-        phone: String?
-    ) async throws -> AuthSession {
+        agreeToTerms: Bool
+    ) async throws -> String {
         throw Unimplemented()
     }
 
@@ -58,12 +59,13 @@ private struct PreviewAuthRepository: AuthRepository {
 
     func register(
         name: String,
+        firstName: String,
         email: String,
         password: String,
         passwordConfirmation: String,
-        phone: String?
-    ) async throws -> AuthSession {
-        Self.cannedSession
+        agreeToTerms: Bool
+    ) async throws -> String {
+        "Registration successful. Please check your email to verify your account."
     }
 
     func login(email: String, password: String) async throws -> AuthSession {

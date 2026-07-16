@@ -1,0 +1,75 @@
+static_analysis_passed: true
+formatting_passed: true
+convention_audit_passed: true
+bugs_found: []
+release_ready: true
+
+notes: >
+  QA Checklist Results (Sprint 5 -- F-011 + F-013 narrowed scope):
+
+  1. **Static analysis** -- `xcodebuild -scheme studiop -destination 'generic/platform=iOS
+  Simulator' build` succeeded with zero errors. One warning in UserProfileCache.swift
+  (Sendable/UserDefaults non-conformance) is pre-existing and unrelated to Sprint 5, same as noted
+  in Sprint 4's QA report. No new warnings introduced.
+
+  2. **Formatting** -- No swiftformat/swift-format or .swiftlint.yml configured;
+  `formatting_passed: true` per fallback rule.
+
+  3. **Convention audit** -- checked explicitly:
+     - Layering held: no Data-layer changes this sprint (AuthRepositoryImpl/UserRepositoryImpl from
+       Sprint 3 already covered every method F-011/F-013 needed). Domain gained
+       AuthFieldValidator.validateName/validatePassword/validatePasswordConfirmation and guard
+       clauses in RegisterUseCase/ResetPasswordUseCase/ConfirmResetPasswordUseCase -- grepped all
+       four Domain files touched this sprint (AuthFieldValidator.swift, RegisterUseCase.swift,
+       ResetPasswordUseCase.swift, ConfirmResetPasswordUseCase.swift): every one imports only
+       Foundation, zero networking/Firebase/Ably imports.
+     - New Presentation types (RegisterViewModel, VerifyAccountViewModel,
+       ResetPasswordRequestViewModel, ResetPasswordConfirmViewModel, CollectEmailViewModel,
+       LoginViewModel's new loginWithApple/appleSignInFailed) all construct their UseCases from
+       Repository protocols read via @Dependency at the View layer, then receive pre-built UseCase
+       instances through their initializer -- same pattern Sprint 4 established (ViewModel depends
+       on UseCase, not Repository directly). No manual composition root, no singleton, no container
+       library.
+     - No new Repository protocol or DependencyKey was added -- F-011/F-013 reused
+       AuthRepository/UserRepository entirely as-is.
+     - No hardcoded backend domain/URL outside Environment (Core) -- no networking code was touched
+       this sprint.
+     - Auth token still query-param only, no refresh-token flow -- unaffected this sprint.
+     - Every UseCase call this sprint maps to an existing, already-implemented AuthRepository/
+       UserRepository method from Sprint 3 -- no new endpoint invented. Two explicitly-flagged
+       assumptions carried over from dev_report, verified as properly flagged rather than silently
+       assumed: (a) `provider: "apple"` literal string sent to /users/socials -- not confirmed
+       against real captured traffic; (b) CollectEmailView submits via ChangeUserProfileUseCase
+       (-> /users/change/profile) as a working assumption, since docs/api-reference.md does not name
+       a specific endpoint for "collect email after social login." Both are documented in
+       dev_report's notes and in the sprint_plan's own acceptance criteria as known risks to verify
+       against real backend traffic later, not something QA should block on -- this mirrors exactly
+       how Sprint 4 handled DTO-shape guesses (confirm-later, not guess-and-hide).
+     - Google/TikTok sign-in buttons are inert (`.disabled(true)`, no action, no fake SDK call) with
+       an inline comment explaining why -- confirmed this is not a half-finished/misleading
+       implementation: nothing pretends to work that doesn't.
+     - `AppleSignInCredential` (a plain struct, not `ASAuthorization`) is the right boundary --
+       confirmed `ASAuthorizationAppleIDCredential` has no public initializer (Apple SDK
+       constraint), so `LoginViewModel.loginWithApple` could not otherwise be unit tested; the
+       View, not the ViewModel, is the only place that touches the real Apple type.
+     - `ValidatedTextField`'s new `isSecure` parameter defaults to `false`, preserving every
+       existing call site (LoginView's email field) without modification -- confirmed via full
+       test suite pass, no regression.
+
+  4. **Test verification** -- ran `xcodebuild test -scheme studiop -destination 'platform=iOS
+  Simulator,name=iPhone 16'` independently: full suite passes, including every new suite this
+  sprint (RegisterViewModelTests, VerifyAccountViewModelTests, ResetPasswordRequestViewModelTests,
+  ResetPasswordConfirmViewModelTests, CollectEmailViewModelTests, AuthFieldValidatorTests'
+  new cases, AuthUseCaseTests' new guard-clause cases, and LoginViewModelTests' new Apple
+  sign-in cases). One run hit a transient simulator bundle-resolution infra error unrelated to any
+  code change; a clean rerun (and a third confirmation run) passed with zero failures.
+
+  No bugs found. `release_ready: true`.
+
+  Carried-forward follow-ups (not sprint blockers, tracked for whoever picks this up next):
+  "Quick login" (docs/features.md) remains undocumented and out of scope, per the user's decision
+  on 2026-07-15 -- needs clarification (e.g. against the source Flutter app) before it can be
+  planned. Google/TikTok sign-in need the user to decide on SDK dependencies and supply real
+  developer credentials before TASK-5's deferred portion can be implemented. The `provider: "apple"`
+  value and the collect-email endpoint assumption should be verified against real captured backend
+  traffic, same discipline as Sprint 4's confirmed-vs-guessed DTO shapes.

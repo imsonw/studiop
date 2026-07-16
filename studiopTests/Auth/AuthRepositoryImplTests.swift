@@ -50,10 +50,11 @@ struct AuthRepositoryImplTests {
 
         _ = try await sut.register(
             name: "Jane Doe",
+            firstName: "Jane",
             email: "jane@example.com",
             password: "hunter2",
             passwordConfirmation: "hunter2",
-            phone: "0123456789"
+            agreeToTerms: true
         )
 
         let request = try #require(fakeNetworkClient.lastRequest)
@@ -63,6 +64,8 @@ struct AuthRepositoryImplTests {
         let body = try #require(request.body)
         let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
         #expect(json["password_confirmation"] as? String == "hunter2")
+        #expect(json["first_name"] as? String == "Jane")
+        #expect(json["check_terms"] as? Bool == true)
     }
 
     @Test func verifyAccountSendsEmailAndCode() async throws {

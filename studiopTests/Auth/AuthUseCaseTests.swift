@@ -9,6 +9,7 @@ final class FakeAuthRepository: AuthRepository, @unchecked Sendable {
         user: User(id: 1, idEncode: "abc", name: "Jane", email: "jane@example.com"),
         token: "token-123"
     )
+    var registerMessageToReturn = "Registration successful. Please check your email to verify your account."
     var errorToThrow: Error?
 
     private(set) var registerCallCount = 0
@@ -20,14 +21,15 @@ final class FakeAuthRepository: AuthRepository, @unchecked Sendable {
 
     func register(
         name: String,
+        firstName: String,
         email: String,
         password: String,
         passwordConfirmation: String,
-        phone: String?
-    ) async throws -> AuthSession {
+        agreeToTerms: Bool
+    ) async throws -> String {
         registerCallCount += 1
         if let errorToThrow { throw errorToThrow }
-        return authSessionToReturn
+        return registerMessageToReturn
     }
 
     func login(email: String, password: String) async throws -> AuthSession {
@@ -74,14 +76,21 @@ final class FakeAuthRepository: AuthRepository, @unchecked Sendable {
 }
 
 struct AuthUseCaseTests {
-    @Test func registerForwardsAndReturnsSession() async throws {
+    @Test func registerForwardsAndReturnsConfirmationMessage() async throws {
         let fake = FakeAuthRepository()
         let useCase = RegisterUseCase(repository: fake)
 
-        let result = try await useCase(name: "Jane", email: "jane@example.com", password: "pw", passwordConfirmation: "pw", phone: nil)
+        let result = try await useCase(
+            name: "Jane",
+            firstName: "Jane",
+            email: "jane@example.com",
+            password: "pw",
+            passwordConfirmation: "pw",
+            agreeToTerms: true
+        )
 
         #expect(fake.registerCallCount == 1)
-        #expect(result == fake.authSessionToReturn)
+        #expect(result == fake.registerMessageToReturn)
     }
 
     @Test func registerPropagatesError() async throws {
@@ -90,8 +99,52 @@ struct AuthUseCaseTests {
         let useCase = RegisterUseCase(repository: fake)
 
         await #expect(throws: StubError.self) {
-            _ = try await useCase(name: "Jane", email: "jane@example.com", password: "pw", passwordConfirmation: "pw", phone: nil)
+            _ = try await useCase(
+                name: "Jane",
+                firstName: "Jane",
+                email: "jane@example.com",
+                password: "pw",
+                passwordConfirmation: "pw",
+                agreeToTerms: true
+            )
         }
+    }
+
+    @Test func registerThrowsValidationErrorForMismatchedPasswordsWithoutCallingRepository() async throws {
+        let fake = FakeAuthRepository()
+        let useCase = RegisterUseCase(repository: fake)
+
+        await #expect(throws: AuthValidationError.passwordConfirmationMismatch) {
+            _ = try await useCase(
+                name: "Jane",
+                firstName: "Jane",
+                email: "jane@example.com",
+                password: "pw1",
+                passwordConfirmation: "pw2",
+                agreeToTerms: true
+            )
+        }
+        #expect(fake.registerCallCount == 0)
+    }
+
+    @Test func resetPasswordThrowsValidationErrorForInvalidEmailWithoutCallingRepository() async throws {
+        let fake = FakeAuthRepository()
+        let useCase = ResetPasswordUseCase(repository: fake)
+
+        await #expect(throws: AuthValidationError.invalidEmailFormat) {
+            try await useCase(email: "not-an-email")
+        }
+        #expect(fake.lastResetPasswordEmail == nil)
+    }
+
+    @Test func confirmResetPasswordThrowsValidationErrorForEmptyNewPasswordWithoutCallingRepository() async throws {
+        let fake = FakeAuthRepository()
+        let useCase = ConfirmResetPasswordUseCase(repository: fake)
+
+        await #expect(throws: AuthValidationError.emptyPassword) {
+            try await useCase(email: "jane@example.com", resetToken: "rt", newPassword: "", newPasswordConfirmation: "")
+        }
+        #expect(fake.lastConfirmResetPassword == nil)
     }
 
     @Test func loginForwardsCredentialsAndReturnsSession() async throws {

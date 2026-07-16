@@ -1,0 +1,160 @@
+sprint_goal: >
+  Remaining Auth flows that need zero new Data layer work (narrowed on 2026-07-15 — see
+  product_backlog.yaml top-level description): Registration, email verification, password reset
+  (F-011), and Social login + collect-email screen (F-013). AuthRepositoryImpl already implements
+  every method these need (register, verifyAccount, resetPassword, confirmResetPassword,
+  loginWithSocial) from Sprint 3 — this sprint is Presentation-only, same shape as Sprint 4.
+
+  Two scope decisions confirmed with the user on 2026-07-15:
+  (1) "Quick login" (docs/features.md line 11) is excluded from this sprint — it has no backing
+  endpoint, UseCase, or flow description anywhere in the repo (verified: not in api-reference.md,
+  not a Domain UseCase, not BiometricRepository). Needs clarification (e.g. against the source
+  Flutter app) before it can be planned; do not guess at its shape.
+  (2) Email verification and password reset use a manual code-entry form only (user types the
+  email + code they received) — no Universal Links/URL-scheme deep-link handling in this sprint,
+  even though docs/api-reference.md's note ("email deep-link activation") suggests the code may
+  normally arrive via a tapped email link.
+
+  Reuse the ValidatedField<Value>/ValidatedTextField pattern and AuthFieldValidator established in
+  Sprint 4's addendum (docs/learning-notes-sprint-004.md #17) for every new form in this sprint —
+  Domain holds the rule + error identity, Presentation holds display text (String Catalog) and the
+  reusable field component.
+
+backlog:
+  - id: F-011
+    title: Registration, email verification, password reset
+    description: >
+      Full auth flows per docs/features.md -> Auth & Account, excluding "quick login" (see
+      sprint_goal). RegisterUseCase, VerifyAccountUseCase, ResetPasswordUseCase,
+      ConfirmResetPasswordUseCase already exist (Sprint 2) and are already fully implemented in
+      AuthRepositoryImpl (Sprint 3) -- Presentation only.
+    acceptance_criteria:
+      - "Registration screen has name, email, password, passwordConfirmation, and an optional
+        phone field, each using ValidatedTextField bound to a ValidatedField<String> on the
+        ViewModel, matching LoginView's pattern exactly."
+      - "AuthFieldValidator gains whatever new rules Register/Reset actually need (e.g. password
+        non-empty, passwordConfirmation matches password) -- extend the same Domain enum/functions,
+        do not create a second validator type."
+      - "RegisterUseCase, ResetPasswordUseCase, and ConfirmResetPasswordUseCase each gain the same
+        defense-in-depth guard LoginUseCase already has (throw an AuthValidationError before
+        calling the repository if a field fails validation) -- currently only LoginUseCase does
+        this; this sprint closes that consistency gap."
+      - "On successful registration, the flow mirrors LoginViewModel exactly: AuthSession.token ->
+        KeychainStoring.writeToken -> FetchUserInfoUseCase -> navigate to Home. On failure at any
+        step, show an inline error and do not navigate (same rule as Sprint 4's F-010)."
+      - "Email verification screen has email + code fields (manual entry, no deep link/universal
+        link handling per the scope decision above), calls VerifyAccountUseCase(email:code:), and
+        shows success/failure feedback. It does not by itself log the user in (VerifyAccountUseCase
+        returns Void, not a session)."
+      - "Password reset is two screens: (1) request -- email only, calls
+        ResetPasswordUseCase(email:); (2) confirm -- email, resetToken (user-entered, since there is
+        no deep link to auto-populate it per the scope decision), newPassword,
+        newPasswordConfirmation, calls ConfirmResetPasswordUseCase. Both screens use
+        ValidatedTextField/ValidatedField for their fields."
+      - "\"Quick login\" is explicitly out of scope for this sprint (see sprint_goal) -- do not add
+        a screen, button, or UseCase call for it."
+
+  - id: F-013
+    title: Social login + collect-email screen
+    description: >
+      Google, Apple, TikTok sign-in via the existing LoginWithSocialUseCase, plus a follow-up
+      screen to collect an email when the social provider didn't supply one.
+    acceptance_criteria:
+      - "Login screen gains Google/Apple/TikTok buttons that obtain a provider token via each
+        platform's own SDK/API (Sign in with Apple is a system framework, no new dependency;
+        Google Sign-In and TikTok require third-party SDKs) and call
+        LoginWithSocialUseCase(provider:socialToken:...)."
+      - "Adding new SPM dependencies (Google Sign-In SDK, TikTok SDK) is confirmed with the user
+        before TASK-5 starts implementation -- do not add third-party packages to the project
+        silently."
+      - "After a successful social login, if session.user.email is an empty string (User.email is
+        non-optional String, so there is no nil to check -- confirmed by reading
+        Domain/Auth/Entities/User.swift and Data/Auth/DTOs/UserDTO.swift), navigate to a
+        collect-email screen instead of Home."
+      - "The collect-email screen's submission endpoint is NOT confirmed in docs/api-reference.md
+        (neither /users/change/info nor /users/change/profile is explicitly documented as \"the\"
+        endpoint for this) -- use ChangeUserProfileUseCase (the partial-update one, since only
+        email needs to change) as the working assumption, but flag it in dev_report notes as
+        unconfirmed against real traffic, same as Sprint 4's DTO-guessing caveats. If QA or a real
+        capture shows it's wrong, this is a fix-forward item, not a sprint blocker."
+      - "If session.user.email is already non-empty after social login, skip the collect-email
+        screen entirely and proceed straight to Home, same as F-011's registration/login flow."
+
+tasks:
+  - id: TASK-1
+    owner: DEV
+    description: >
+      Extend Domain/Auth/Validation/AuthFieldValidator.swift with whatever new rules Register and
+      Reset need (e.g. non-empty password, passwordConfirmation-matches-password). Add the same
+      guard-clause validation LoginUseCase already has to RegisterUseCase, ResetPasswordUseCase,
+      and ConfirmResetPasswordUseCase (throw AuthValidationError before calling the repository).
+      Update AuthValidationError+Localized.swift with display text for any new cases.
+    depends_on: []
+
+  - id: TASK-2
+    owner: DEV
+    description: >
+      Build RegisterViewModel + RegisterView (SwiftUI), using ValidatedField<String>/
+      ValidatedTextField for every field, mirroring LoginView/LoginViewModel's structure exactly.
+      On success: write token to Keychain, call FetchUserInfoUseCase, navigate to Home. On
+      failure: inline error, no navigation.
+    depends_on: [TASK-1]
+
+  - id: TASK-3
+    owner: DEV
+    description: >
+      Build VerifyAccountViewModel + VerifyAccountView (email + code, manual entry, calls
+      VerifyAccountUseCase). No deep link handling.
+    depends_on: [TASK-1]
+
+  - id: TASK-4
+    owner: DEV
+    description: >
+      Build the two-screen password reset flow: ResetPasswordRequestView (email only ->
+      ResetPasswordUseCase) and ResetPasswordConfirmView (email, resetToken, newPassword,
+      newPasswordConfirmation, manually entered -> ConfirmResetPasswordUseCase).
+    depends_on: [TASK-1]
+
+  - id: TASK-5
+    owner: DEV
+    description: >
+      Add Google/Apple/TikTok sign-in buttons to LoginView. Confirm with the user before adding
+      any new SPM dependency (Google Sign-In SDK, TikTok SDK); Sign in with Apple uses
+      AuthenticationServices (no new dependency). Wire each provider's token into
+      LoginWithSocialUseCase(provider:socialToken:socialEmail:socialUserId:socialName:...).
+    depends_on: []
+
+  - id: TASK-6
+    owner: DEV
+    description: >
+      Build the collect-email screen (ValidatedTextField for the email field, reusing
+      AuthFieldValidator.validateEmail), routed to when session.user.email.isEmpty after a
+      successful social login. Submit via ChangeUserProfileUseCase as the working assumption --
+      flag as unconfirmed against real backend traffic in dev_report notes per the acceptance
+      criteria above.
+    depends_on: [TASK-5]
+
+  - id: TASK-7
+    owner: DEV
+    description: >
+      Unit tests (Swift Testing, matching studiopTests/Auth/LoginViewModelTests.swift's Fake-
+      repository pattern) for RegisterViewModel, VerifyAccountViewModel,
+      ResetPasswordRequestViewModel, ResetPasswordConfirmViewModel, and the collect-email routing
+      logic (email-empty vs non-empty branch after social login). Also add
+      AuthFieldValidatorTests cases for whatever TASK-1 added.
+    depends_on: [TASK-2, TASK-3, TASK-4, TASK-6]
+
+  - id: TASK-8
+    owner: QA
+    description: >
+      Run the full QA checklist (static analysis build, formatting, convention audit, re-run
+      xcodebuild test) against Sprint 5. Convention audit should specifically confirm: (a) every
+      new form uses ValidatedField/ValidatedTextField + AuthFieldValidator, no ad-hoc validation
+      logic duplicated elsewhere; (b) RegisterUseCase/ResetPasswordUseCase/
+      ConfirmResetPasswordUseCase now guard with AuthFieldValidator like LoginUseCase; (c) no new
+      SPM dependency was added without the user's prior confirmation (check Package.resolved /
+      project.pbxproj package references against what was discussed); (d) collect-email routing
+      checks an empty String, not an Optional, since User.email is non-optional; (e) no hardcoded
+      social provider client ID/secret outside Environment/Core config; (f) Domain layer changes
+      (TASK-1) still import nothing beyond Foundation.
+    depends_on: [TASK-7]

@@ -8,6 +8,7 @@ struct ResetPasswordUseCase {
     }
 
     func callAsFunction(email: String) async throws {
+        if let error = AuthFieldValidator.validateEmail(email) { throw error }
         try await repository.resetPassword(email: email)
     }
 }

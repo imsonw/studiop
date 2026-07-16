@@ -48,7 +48,7 @@ client's `lib/config.dart` for the literal current staging/prod URLs).
 
 | Method | Path | Body / Query | Notes |
 |---|---|---|---|
-| POST | `/users/register` | registration fields | |
+| POST | `/users/register` | `{name, first_name, email, password, password_confirmation, check_terms}` | field names/shape confirmed against the Flutter source app's request construction (2026-07-16); no `phone` field |
 | POST | `/users/login` | `{email, password}` | |
 | POST | `/users/verify/account` | `{email, code}` | email deep-link activation |
 | POST | `/users/reset/password` | `{email}` | |
@@ -67,6 +67,17 @@ independently on two different endpoints in the same domain (Auth, User) — tre
 backend's general convention. `UserRepository`'s `changeUserInfo`/`changeUserProfile` responses
 are decoded the same way (`DataResponseDTO<UserDTO>`) by extension of this confirmed pattern, but
 haven't individually been captured against real traffic yet — verify if either misbehaves.
+
+**`/users/register` success is the exception to the pattern above** (confirmed against a real
+captured response): `status: 1` on register does **not** include `data`/`token` at all — just
+`{status: 1, code, message, msg}`, e.g. `msg: "Registration successful. Please check your email to
+verify your account."`. This means registering never authenticates the device by itself: the
+account isn't usable until the email-verify step (`/users/verify/account`, already wired to
+`VerifyAccountUseCase`), after which the user logs in normally through `/users/login` to get a
+token. `AuthRepository.register` therefore returns the backend's confirmation `String` (from
+`msg`), not an `AuthSession` — decoding it as a session (the old behavior) threw
+`DecodingError.keyNotFound` on the missing `token`/`data`, surfacing to the user as "The data
+couldn't be read because it is missing."
 
 ## `BiometricRepository`
 

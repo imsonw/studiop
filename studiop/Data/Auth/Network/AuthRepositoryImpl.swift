@@ -11,17 +11,19 @@ final class AuthRepositoryImpl: AuthRepository {
 
     func register(
         name: String,
+        firstName: String,
         email: String,
         password: String,
         passwordConfirmation: String,
-        phone: String?
-    ) async throws -> AuthSession {
+        agreeToTerms: Bool
+    ) async throws -> String {
         let dto = RegisterRequestDTO(
             name: name,
+            firstName: firstName,
             email: email,
             password: password,
             passwordConfirmation: passwordConfirmation,
-            phone: phone
+            checkTerms: agreeToTerms
         )
         let data = try await networkClient.send(
             NetworkRequest(
@@ -31,7 +33,7 @@ final class AuthRepositoryImpl: AuthRepository {
                 authentication: .publicToken
             )
         )
-        return try Self.decodeSession(from: data)
+        return try JSONDecoder().decode(RegisterResponseDTO.self, from: data).msg
     }
 
     func login(email: String, password: String) async throws -> AuthSession {

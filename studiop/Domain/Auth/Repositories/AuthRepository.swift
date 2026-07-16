@@ -5,11 +5,12 @@ import Foundation
 protocol AuthRepository: Sendable {
     func register(
         name: String,
+        firstName: String,
         email: String,
         password: String,
         passwordConfirmation: String,
-        phone: String?
-    ) async throws -> AuthSession
+        agreeToTerms: Bool
+    ) async throws -> String
 
     func login(email: String, password: String) async throws -> AuthSession
 

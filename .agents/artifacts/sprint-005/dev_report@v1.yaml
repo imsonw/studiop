@@ -1,0 +1,53 @@
+status: completed
+tasks_completed: [TASK-1, TASK-2, TASK-3, TASK-4, TASK-5, TASK-6, TASK-7]
+tasks_in_progress: []
+remaining_tasks: []
+unit_tests_passed: true
+notes: >
+  F-011 (Registration, email verification, password reset) is fully done: TASK-1 extended
+  AuthFieldValidator with validateName/validatePassword/validatePasswordConfirmation, and added the
+  same defense-in-depth guard to RegisterUseCase/ResetPasswordUseCase/ConfirmResetPasswordUseCase
+  that LoginUseCase already had. TASK-2/3/4 built RegisterViewModel+View, VerifyAccountViewModel+
+  View, ResetPasswordRequestViewModel+View, ResetPasswordConfirmViewModel+View, all using
+  ValidatedField<String>/ValidatedTextField -- extended ValidatedTextField with an `isSecure` flag
+  (switches TextField/SecureField) since password fields need obscured input; this was a small,
+  justified extension of the Sprint 4 addendum component, not a new one. LoginView now wraps its
+  content in a NavigationStack with NavigationLinks to Register/ResetPasswordRequest/VerifyAccount
+  (ad-hoc NavigationStack, matching F-042's own description of what Coordinator navigation will
+  later replace -- not scope creep).
+
+  F-013 (Social login) scope was narrowed with the user on 2026-07-15 after flagging that real
+  Google/Apple/TikTok sign-in needs SDK dependencies and real provider credentials (Client IDs, URL
+  schemes, Apple's Sign-in-with-Apple capability) that can't be supplied from this session. Decided
+  scope: TASK-5 implements real, working Apple Sign-In only (AuthenticationServices'
+  SignInWithAppleButton -- no third-party SPM dependency needed) wired to the existing
+  LoginWithSocialUseCase; Google/TikTok are disabled placeholder buttons (no SDK call, not wired to
+  anything fake) with a comment explaining why, left for a follow-up once the user has real
+  credentials + has decided on SDK packages. `provider: "apple"` is an unconfirmed literal value --
+  docs/api-reference.md doesn't specify the exact string this backend expects per provider; flagged
+  for verification against real captured traffic, same discipline as Sprint 4's DTO-shape findings.
+
+  TASK-6 (collect-email screen) is implemented and reachable: Apple only supplies an email on a
+  user's very first authorization with this app, so `session` after `FetchUserInfoUseCase` can have
+  an empty (not nil -- User.email is non-optional String) email on subsequent logins -- this is a
+  real, exercisable case with the one working provider (Apple), not a hypothetical. CollectEmailView
+  submits via ChangeUserProfileUseCase as a working assumption (no endpoint in docs/api-reference.md
+  is explicitly named for this); flagged for verification, does not block the sprint per the same
+  rule TASK-6's acceptance criteria set out.
+
+  Design note: `LoginViewModel.loginWithApple` takes a plain `AppleSignInCredential` struct, not
+  `ASAuthorization`/`ASAuthorizationAppleIDCredential` directly -- Apple's credential type has no
+  public initializer, so it can't be constructed in unit tests. The View extracts the plain struct
+  from the real Apple credential; the ViewModel logic (which is what actually needs testing) stays
+  fully unit-testable.
+
+  TASK-7 unit tests: RegisterViewModelTests, VerifyAccountViewModelTests,
+  ResetPasswordRequestViewModelTests, ResetPasswordConfirmViewModelTests, CollectEmailViewModelTests,
+  and LoginViewModelTests additions for loginWithApple (success-with-email, success-needing-
+  email-collection, failure) and appleSignInFailed. Reused the existing non-private FakeAuthRepository
+  (AuthUseCaseTests.swift) and FakeUserRepository (UserUseCaseTests.swift) rather than duplicating
+  new fakes.
+
+  Full test suite (xcodebuild test -scheme studiop -destination 'platform=iOS Simulator,name=iPhone 16')
+  passes end to end, including every new suite (confirmed twice -- one run hit a transient simulator
+  bundle-resolution error unrelated to the code, a clean rerun passed cleanly).

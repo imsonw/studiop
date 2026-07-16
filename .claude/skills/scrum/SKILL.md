@@ -11,6 +11,18 @@ description: >
 
 # AI Multi-Agent Scrum Framework
 
+## Testing Policy
+
+**Unit tests are turned off project-wide (user decision, 2026-07-16) to prioritize development
+speed.** This changes both roles below:
+- PM/TL must not add "write unit tests" tasks to a `sprint_plan`.
+- DEV must not write or update `XCTest` files as part of implementing a task, and does not gate
+  `status: completed` on any test run.
+- QA does not run `xcodebuild test` and does not gate `release_ready` on tests. Existing tests in
+  the repo may still be left in place, just don't add new ones or re-run the suite as a gate.
+- If a task is safety/data-integrity critical, it's fine to flag to the user that tests might be
+  worth reconsidering there — but default to skipping.
+
 ## On Every Session Start (Mandatory)
 
 Before doing anything else, run the Auto-Resume Protocol:
@@ -103,14 +115,14 @@ status: in_progress|completed
 tasks_completed: [STR]
 tasks_in_progress: [STR]
 remaining_tasks: [STR]
-unit_tests_passed: BOOL
 notes: STR
 ```
 
 **Rules:**
 - Follow the task dependency order from `sprint_plan`.
 - Update `dev_report` after completing each task (move IDs between arrays).
-- Set `status: completed` only when all tasks are done and unit tests pass.
+- Set `status: completed` only when all tasks are done. Do not write or update unit tests as
+  part of a task, and do not gate completion on any test run (see Testing Policy above).
 - Respect existing project conventions (see [CLAUDE.md](/CLAUDE.md)): Clean Architecture layering —
   Presentation → Domain (Entity/UseCase/Repository protocol) → Data (RepositoryImpl/DataSource) →
   Core (NetworkClient/Environment). Domain never imports networking, Firebase, or Ably. DI via
@@ -160,8 +172,6 @@ release_ready: BOOL
    - Auth token passed as a query parameter (never a header); no refresh-token flow implemented
    - Every network call / Firebase path / Ably channel matches
      [docs/api-reference.md](/docs/api-reference.md) exactly — no invented endpoints or fields
-4. **Test verification** — re-run `xcodebuild test -scheme studiop -destination 'platform=iOS Simulator,name=iPhone 16'`
-   to confirm the `unit_tests_passed: true` claimed in `dev_report`; if it actually fails, record it in `bugs_found`.
 
 **Rules:**
 - If any check fails, list specific issues in `bugs_found`.

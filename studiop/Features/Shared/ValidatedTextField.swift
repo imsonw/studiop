@@ -3,15 +3,22 @@ import SwiftUI
 struct ValidatedTextField: View {
     let title: String
     @Binding var field: ValidatedField<String>
+    var isSecure: Bool = false
     let validate: (String) -> String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            TextField(title, text: $field.value)
-                .textFieldStyle(.roundedBorder)
-                .onChange(of: field.value) {
-                    field.error = validate(field.value)
+            Group {
+                if isSecure {
+                    SecureField(title, text: $field.value)
+                } else {
+                    TextField(title, text: $field.value)
                 }
+            }
+            .textFieldStyle(.roundedBorder)
+            .onChange(of: field.value) {
+                field.error = validate(field.value)
+            }
 
             if let error = field.error {
                 Text(error)

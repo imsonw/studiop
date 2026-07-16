@@ -17,12 +17,13 @@ private struct FakeAuthRepositorySuccess: AuthRepository {
 
     func register(
         name: String,
+        firstName: String,
         email: String,
         password: String,
         passwordConfirmation: String,
-        phone: String?
-    ) async throws -> AuthSession {
-        session
+        agreeToTerms: Bool
+    ) async throws -> String {
+        "Registration successful. Please check your email to verify your account."
     }
 
     func login(email: String, password: String) async throws -> AuthSession {
@@ -55,11 +56,12 @@ private struct FakeAuthRepositorySuccess: AuthRepository {
 private struct FakeAuthRepositoryFailure: AuthRepository {
     func register(
         name: String,
+        firstName: String,
         email: String,
         password: String,
         passwordConfirmation: String,
-        phone: String?
-    ) async throws -> AuthSession {
+        agreeToTerms: Bool
+    ) async throws -> String {
         throw StubError()
     }
 
@@ -150,6 +152,7 @@ struct LoginViewModelTests {
 
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
+            loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
             appState: appState
@@ -172,6 +175,7 @@ struct LoginViewModelTests {
 
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
+            loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
             appState: appState
@@ -194,6 +198,7 @@ struct LoginViewModelTests {
 
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
+            loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
             appState: appState
@@ -217,6 +222,7 @@ struct LoginViewModelTests {
 
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
+            loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
             appState: appState
@@ -229,5 +235,108 @@ struct LoginViewModelTests {
         #expect(!appState.isAuthenticated)
         #expect(viewModel.errorMessage != nil)
         #expect(fakeKeychain.readToken() == "preview-token")
+    }
+
+    @Test func loginWithAppleSuccessWithEmailAuthenticates() async {
+        let fakeAuth = FakeAuthRepository()
+        let fakeUser = FakeUserRepository()
+        let fakeKeychain = InMemoryKeychainStore()
+        let appState = AppState()
+
+        let viewModel = LoginViewModel(
+            loginUseCase: LoginUseCase(repository: fakeAuth),
+            loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
+            keychainStore: fakeKeychain,
+            appState: appState
+        )
+        let credential = AppleSignInCredential(
+            identityToken: "id-token",
+            email: "jane@example.com",
+            userIdentifier: "apple-user-id",
+            fullName: "Jane Doe"
+        )
+
+        await viewModel.loginWithApple(credential)
+
+        #expect(appState.isAuthenticated)
+        #expect(!viewModel.needsEmailCollection)
+        #expect(fakeAuth.lastSocialLogin?.provider == "apple")
+        #expect(fakeAuth.lastSocialLogin?.socialToken == "id-token")
+        #expect(fakeKeychain.readToken() == fakeAuth.authSessionToReturn.token)
+    }
+
+    @Test func loginWithAppleWithoutEmailNeedsEmailCollection() async {
+        let fakeAuth = FakeAuthRepository()
+        let fakeUser = FakeUserRepository()
+        fakeUser.userToReturn = User(id: 1, idEncode: "abc", name: "Jane", email: "")
+        let fakeKeychain = InMemoryKeychainStore()
+        let appState = AppState()
+
+        let viewModel = LoginViewModel(
+            loginUseCase: LoginUseCase(repository: fakeAuth),
+            loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
+            keychainStore: fakeKeychain,
+            appState: appState
+        )
+        let credential = AppleSignInCredential(
+            identityToken: "id-token",
+            email: nil,
+            userIdentifier: "apple-user-id",
+            fullName: nil
+        )
+
+        await viewModel.loginWithApple(credential)
+
+        #expect(!appState.isAuthenticated)
+        #expect(viewModel.needsEmailCollection)
+    }
+
+    @Test func loginWithAppleFailurePropagatesError() async {
+        let fakeAuth = FakeAuthRepository()
+        fakeAuth.errorToThrow = StubError()
+        let fakeUser = FakeUserRepository()
+        let fakeKeychain = InMemoryKeychainStore()
+        let appState = AppState()
+
+        let viewModel = LoginViewModel(
+            loginUseCase: LoginUseCase(repository: fakeAuth),
+            loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
+            keychainStore: fakeKeychain,
+            appState: appState
+        )
+        let credential = AppleSignInCredential(
+            identityToken: "id-token",
+            email: "jane@example.com",
+            userIdentifier: "apple-user-id",
+            fullName: nil
+        )
+
+        await viewModel.loginWithApple(credential)
+
+        #expect(!appState.isAuthenticated)
+        #expect(viewModel.errorMessage != nil)
+        #expect(fakeKeychain.readToken() == nil)
+    }
+
+    @Test func appleSignInFailedSetsErrorMessage() {
+        let fakeAuth = FakeAuthRepositorySuccess()
+        let fakeUser = FakeUserRepositorySuccess()
+        let fakeKeychain = InMemoryKeychainStore()
+        let appState = AppState()
+
+        let viewModel = LoginViewModel(
+            loginUseCase: LoginUseCase(repository: fakeAuth),
+            loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
+            keychainStore: fakeKeychain,
+            appState: appState
+        )
+
+        viewModel.appleSignInFailed(AppleSignInCredentialError())
+
+        #expect(viewModel.errorMessage != nil)
     }
 }
