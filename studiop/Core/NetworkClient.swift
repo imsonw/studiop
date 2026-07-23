@@ -158,9 +158,12 @@ private struct PreviewNetworkClient: NetworkClient {
 
 private enum NetworkClientKey: DependencyKey {
     static var liveValue: NetworkClient {
-        @Dependency(\.environmentStore) var environmentStore
-        @Dependency(\.keychainStore) var keychainStore
-        return URLSessionNetworkClient(environmentStore: environmentStore, keychainStore: keychainStore)
+        // Swapped to MockNetworkClient 2026-07-16 (user request: stop hitting the real backend).
+        // To go back to the real backend, restore:
+        //   @Dependency(\.environmentStore) var environmentStore
+        //   @Dependency(\.keychainStore) var keychainStore
+        //   return URLSessionNetworkClient(environmentStore: environmentStore, keychainStore: keychainStore)
+        MockNetworkClient()
     }
 
     static let testValue: NetworkClient = UnimplementedNetworkClient()

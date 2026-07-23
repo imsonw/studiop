@@ -88,6 +88,24 @@ couldn't be read because it is missing."
 | GET | `/v1/biometric/check-status` | `?device_id=` | |
 | POST | `/v1/biometric/login` | `{device_id, biometric_token}` | public token, no user token |
 
+**Confirmed against the Flutter source app's `BiometricCubit` (2026-07-23), resolving the
+`biometric_token`-origin assumption Sprint 6 flagged as UNCONFIRMED:** `/v1/biometric/enable`'s
+response returns a server-issued `biometric_token` as a **top-level field** alongside
+`status`/`code`/`msg` (not nested under `data`) — the client only generates the pairing `device_id`
+(device-stable, from `UIDevice.identifierForVendor`), never the token itself. See
+`EnableBiometricResponseDTO`.
+
+Also confirmed by the same source: `/v1/biometric/login`'s response can include an optional
+top-level `new_biometric_token` — the backend rotates the pairing secret on some/every successful
+login, and the client must overwrite its stored `biometric_token` with this value when present. See
+`BiometricLoginResponseDTO`.
+
+**Still UNCONFIRMED:** `/v1/biometric/check-status`'s exact response shape — the Flutter source
+abstracts it behind `BiometricService.checkStatus()`, which returns a plain `bool`, so it doesn't
+reveal the underlying JSON. `BiometricStatusDTO`'s assumed `{data: {device_id, device_name,
+is_enabled}}` shape (mirroring this backend's general envelope) remains unverified — check against
+real captured traffic before trusting it.
+
 ## `UserRepository`
 
 | Method | Path | Body / Query | Notes |

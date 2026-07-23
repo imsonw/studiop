@@ -1,0 +1,90 @@
+status: completed
+tasks_completed: [TASK-1, TASK-2, TASK-3, TASK-4, TASK-5, TASK-6, TASK-7]
+tasks_in_progress: []
+remaining_tasks: []
+notes: >
+  All DEV tasks completed.
+
+  TASK-1 (BiometricRepositoryImpl + DependencyKey): all four BiometricRepository methods against
+  `/v1/biometric/*`. enable/disable/check-status use `.userToken` (NetworkRequest's default,
+  left unspecified); loginWithBiometric explicitly uses `.publicToken` per docs/api-reference.md.
+  New DTOs: EnableBiometricRequestDTO, DisableBiometricRequestDTO, LoginWithBiometricRequestDTO,
+  BiometricStatusDTO (response, decoded via DataResponseDTO<BiometricStatusDTO>). TWO UNCONFIRMED
+  ASSUMPTIONS flagged in code comments and now in docs/api-reference.md (not silently resolved):
+  (a) biometric_token is client-generated (UUID) since /enable's documented body/response gives no
+  server-issued alternative; (b) check-status's response shape (undocumented) is assumed to be
+  {data: {device_id, device_name, is_enabled}}. Both need verification against the Flutter source
+  or real captured traffic before being treated as confirmed.
+
+  TASK-2 (AddressRepositoryImpl + DependencyKey): all four AddressRepository methods against
+  `/users/address/*`, reusing the existing AddressDTO from Sprint 2 as-is (no new DTO needed) --
+  all four use `.userToken` (account-scoped).
+
+  TASK-3 (Core BiometricAuthenticating): new protocol wrapping LAContext
+  (canEvaluatePolicy/authenticate(reason:)) + DependencyKey, separate from BiometricRepository
+  (device-local vs backend). Also added BiometricCredentialStoring (Core/
+  BiometricCredentialStore.swift) beyond the plan's explicit text -- a small Keychain-backed
+  protocol for the device_id/biometric_token pairing itself, kept separate from the existing
+  KeychainStoring (narrowly scoped to the single auth-token account) rather than extending it,
+  per "one protocol per distinct capability."
+
+  TASK-4 (Biometric UI): LoginViewModel/LoginView gained a Face ID/Touch ID quick-login
+  affordance, shown only when canUseBiometricLogin (a device is paired AND canEvaluatePolicy());
+  tapping it authenticates on-device first, then calls BiometricLoginUseCase only on success --
+  never hits the backend before the local prompt passes. New standalone BiometricSettingsView +
+  BiometricSettingsViewModel for the enable/disable toggle, gated on canEvaluatePolicy so the
+  toggle is hidden entirely on devices/simulators without biometry.
+
+  TASK-5 (Address book UI): AddressListView (list, swipe-to-delete, set-default via a normal
+  update call since no dedicated endpoint exists), AddressFormView (create/edit, shared for
+  both), and SelectAddressSheet (the reusable bottom sheet Sprint 7's checkout will reuse).
+  SENIOR-SKILL ADD-ON (approved 2026-07-16): AddressFormView's "Pick on map" button opens
+  LocationPickerView (new), built on SwiftUI's iOS 17+ Map/MapReader API (not MKMapView) plus
+  CLLocationManager (current-location button) and CLGeocoder (reverse-geocoding a dropped pin
+  into a display string) via a new LocationPickerViewModel. Writes back into Address.location as
+  a plain String -- Domain untouched, all coordinate/placemark handling stays in Presentation.
+  Added INFOPLIST_KEY_NSLocationWhenInUseUsageDescription to both Debug/Release build settings in
+  project.pbxproj (GENERATE_INFOPLIST_FILE=YES project, no physical Info.plist to edit directly);
+  validated with `plutil -lint` after the edit.
+
+  TASK-6 (Profile/Account-Settings UI): ProfileView is this sprint's settings hub -- profile
+  edit (name/email/phone/company/tax code via ChangeUserProfileUseCase), change password
+  (ChangePasswordUseCase), and NavigationLinks to BiometricSettingsView, AddressListView, and
+  TASK-7's AccountDeletionRequestView. Zero new Data layer, all reuse UserRepositoryImpl from
+  Sprint 3. Threaded `appState` explicitly through HomeView -> ProfileView ->
+  AccountDeletionRequestView (constructor params, not @Environment) because
+  AccountDeletionViewModel needs it at construction time to clear the session on confirmed
+  deletion -- same @Environment-can't-be-read-in-init constraint documented in
+  learning-notes-sprint-004.md §11. HomeView (still an empty Sprint-4 placeholder) gained a
+  temporary "Account" NavigationLink as a bridge to this sprint's screens, since the real bottom
+  tab shell (Sprint 9's F-028) doesn't exist yet; RootView now passes its appState down to
+  HomeView to make this possible.
+
+  TASK-7 (Account deletion UI): AccountDeletionRequestView (reason + submit ->
+  RequestAccountRemovalUseCase) and AccountDeletionConfirmView (email+code ->
+  ConfirmAccountRemovalUseCase, mirroring VerifyAccountView's shape per the plan) share ONE
+  AccountDeletionViewModel instance passed between the two screens, not reconstructed, so the
+  request/confirm flow stays continuous. AccountDeletionConfirmView uses @Bindable (not
+  @State-owned) since it receives the viewModel as a plain reference parameter -- textbook case
+  from learning-notes-sprint-004.md §8. On confirmed deletion: keychainStore.clear() +
+  appState.isAuthenticated = false, routing back to LoginView via RootView's existing
+  if/else -- did NOT build an "account verification" screen (correctly out of scope per the
+  sprint plan).
+
+  GAP DISCOVERED, NOT FIXED THIS SPRINT (flagging per project convention rather than silently
+  reusing something that doesn't exist): the sprint plan's F-015 acceptance criteria assumed
+  "the same session-teardown path already used for 401/403 in NetworkClient" exists at the
+  Presentation layer. It doesn't -- NetworkClient clears the Keychain token on
+  sessionInvalidated, but nothing currently flips appState.isAuthenticated back to false when
+  that happens (verified via grep, zero hits). AccountDeletionViewModel does its own
+  keychainStore.clear() + appState.isAuthenticated = false directly, which is correct for this
+  feature, but the general 401/403-mid-session case is still an open gap -- worth a Sprint 13
+  (cross-cutting hardening) follow-up, not fixed here since it's out of this sprint's stated
+  scope.
+
+  No unit tests written, per the Testing Policy (.claude/skills/scrum/SKILL.md). Existing tests
+  broken by two signature changes were fixed to compile (not new coverage): LoginViewModelTests'
+  8 LoginViewModel(...) call sites (added biometricLoginUseCase/biometricAuthenticating/
+  biometricCredentialStore params, reused the existing FakeBiometricRepository from Sprint 2's
+  BiometricUseCaseTests.swift rather than declaring a duplicate). Both `xcodebuild build` and
+  `xcodebuild build-for-testing` succeed with zero errors.

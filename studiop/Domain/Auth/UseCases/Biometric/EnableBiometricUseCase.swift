@@ -7,7 +7,7 @@ struct EnableBiometricUseCase {
         self.repository = repository
     }
 
-    func callAsFunction(deviceID: String, deviceName: String) async throws {
+    func callAsFunction(deviceID: String, deviceName: String) async throws -> String {
         try await repository.enableBiometric(deviceID: deviceID, deviceName: deviceName)
     }
 }

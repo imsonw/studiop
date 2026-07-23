@@ -1,0 +1,71 @@
+status: completed
+tasks_completed: [TASK-1, TASK-2, TASK-3, TASK-4, TASK-5, TASK-6, TASK-7, TASK-8]
+tasks_in_progress: []
+remaining_tasks: []
+notes: >
+  v2: post-QA correction to TASK-1/TASK-4's biometric login flow (TASK-8), reported by the user
+  pasting the source Flutter app's `BiometricCubit` for comparison (2026-07-23). v1's dev_report
+  had explicitly flagged the `biometric_token` origin as an UNCONFIRMED assumption -- the Flutter
+  source resolves it, and comparing further surfaced real logic gaps beyond that one flag, not just
+  a rename. All fixed here, no new coverage added (Testing Policy unchanged).
+
+  1. **`biometric_token` origin (confirmed wrong)**: v1 generated it client-side
+  (`UUID().uuidString`) since docs/api-reference.md didn't document the enable response shape. The
+  Flutter source proves the backend issues it -- a top-level `biometric_token` field on the
+  `/v1/biometric/enable` response, alongside `status`/`code`/`msg` (not nested under `data`).
+  Fixed: `BiometricRepository.enableBiometric` now returns `String` (the server-issued token);
+  new `EnableBiometricResponseDTO` decodes it; `EnableBiometricUseCase` and
+  `BiometricSettingsViewModel.setEnabled` updated to use the returned value instead of generating
+  one. docs/api-reference.md's BiometricRepository section rewritten to record this as confirmed.
+
+  2. **Missing token rotation on biometric login**: the Flutter source's `biometricLogin` reads an
+  optional top-level `new_biometric_token` from the login response and overwrites the stored
+  pairing secret with it -- v1 had no equivalent at all (`loginWithBiometric` only ever returned
+  `AuthSession`). Fixed: new `BiometricLoginResponseDTO` (mirrors `AuthSessionResponseDTO` +
+  `new_biometric_token`); `BiometricRepository.loginWithBiometric` now returns
+  `(session: AuthSession, newBiometricToken: String?)`; `BiometricLoginUseCase` propagates it;
+  `LoginViewModel.loginWithBiometric` rewrites the Keychain pairing when a new token is present.
+
+  3. **No distinction between "server rejected this pairing" and "network hiccup" on biometric
+  login**: the Flutter source clears all local biometric data on an explicit server rejection
+  (invalid token / account locked) but leaves it alone on a transport-level error, so a flaky
+  network doesn't silently unpair a valid device. v1's `LoginViewModel.loginWithBiometric` treated
+  every error identically. Fixed: catches `NetworkError.apiError`/`.sessionInvalidated` (this
+  backend's explicit-rejection signals, see `NetworkClient`'s `businessFailureMessage`) separately
+  from other errors -- only those clear `biometricCredentialStore` and flip `canUseBiometricLogin`
+  off; a `.transport` error just surfaces the message and leaves the pairing intact for retry.
+
+  4. **Disable-biometric didn't clear local state on API failure**: the Flutter source's
+  `disableBiometric` deliberately swallows a failed disable-API call and clears local pairing data
+  anyway ("safer" per its own comment) so the user isn't stuck with a toggle that silently failed
+  to turn off. v1's `BiometricSettingsViewModel.setEnabled(false)` let a thrown error skip the
+  `biometricCredentialStore.clear()` entirely, leaving a stale pairing + toggle still reporting
+  enabled. Fixed to match: the disable-API call's own error is caught and discarded before the
+  local clear, which now always runs.
+
+  5. **Biometric-prompt cancellation/fallback surfaced as a scary error**: the Flutter source's
+  `_isSilentException` treats `userCanceled`/`systemCanceled`/`userRequestedFallback` as silent, no
+  error shown -- v1 put `error.localizedDescription` in `errorMessage` for any `LAError`, including
+  a plain user-tapped-Cancel. Fixed: new `LAError.isSilentDismissal` (Core/BiometricAuthenticating)
+  covering `.userCancel`/`.systemCancel`/`.appCancel`/`.userFallback`; both `LoginViewModel.
+  loginWithBiometric` and `BiometricSettingsViewModel.setEnabled` catch it first and no-op (no
+  separate fallback screen needed here since LoginView already shows the password fields inline).
+
+  6. **Changing password didn't invalidate the biometric pairing**: the Flutter source has a
+  dedicated `clearLocalBiometricData()` "used when user changes password" -- v1's
+  `ProfileViewModel.changePassword` had no such call, no `BiometricCredentialStoring` dependency at
+  all. Fixed: `ProfileViewModel` now takes `biometricCredentialStore` and clears it on a successful
+  password change.
+
+  TASK-8 (this fix) also updated `MockNetworkClient` (the current `NetworkClientKey.liveValue`) to
+  actually emit `biometric_token` on enable and `new_biometric_token` on login, so the mocked app
+  exercises all of the above end-to-end; and fixed `FakeBiometricRepository` in
+  `BiometricUseCaseTests.swift` plus one assertion (`result.session ==` instead of `result ==`) to
+  compile against the new tuple return type -- compile-fix only, no new test coverage, per Testing
+  Policy.
+
+  Still open, unchanged from v1: `/v1/biometric/check-status`'s response shape remains
+  UNCONFIRMED (the Flutter source abstracts it behind a `bool`-returning service call and doesn't
+  reveal the JSON); the general 401/403-mid-session `appState.isAuthenticated` gap (Sprint 13
+  candidate); Google/TikTok sign-in and "Quick login"/"Account verification" scope questions.
+</notes>

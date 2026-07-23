@@ -1,0 +1,84 @@
+static_analysis_passed: true
+formatting_passed: true
+convention_audit_passed: true
+bugs_found: []
+release_ready: true
+
+notes: >
+  QA Checklist Results (Sprint 6 -- Biometric login, Profile & address book, Account deletion):
+
+  1. **Static analysis** -- `xcodebuild -scheme studiop -destination 'generic/platform=iOS
+  Simulator' build` succeeded with zero errors. `xcodebuild build-for-testing` also succeeded
+  with zero errors after fixing 8 pre-existing LoginViewModel(...) construction sites in
+  LoginViewModelTests.swift broken by this sprint's constructor signature change (reused Sprint
+  2's existing FakeBiometricRepository from BiometricUseCaseTests.swift rather than declaring a
+  duplicate -- caught an "invalid redeclaration" compile error on the first attempt and fixed it).
+  No new warnings beyond the pre-existing UserProfileCache.swift Sendable/UserDefaults one already
+  noted in Sprint 4/5's QA reports.
+
+  2. **Formatting** -- no swiftformat/swift-format or .swiftlint.yml configured;
+  `formatting_passed: true` per fallback rule, same as every prior sprint.
+
+  3. **Convention audit** -- checked explicitly:
+     - Layering held: grepped every Domain file touched or referenced this sprint
+       (BiometricRepository.swift, AddressRepository.swift, BiometricDevice.swift, Address.swift,
+       and all four Biometric/Address UseCases) -- every one imports only Foundation, zero
+       networking/Firebase/Ably/MapKit/CoreLocation/LocalAuthentication imports. Domain itself was
+       not modified this sprint at all (all pre-existing from Sprint 2); only Data/Core/
+       Features gained new files.
+     - New Repository protocols (BiometricRepository, AddressRepository -- both pre-existing
+       Domain protocols from Sprint 2) each get exactly one new DependencyKey this sprint
+       (BiometricRepositoryKey.swift, AddressRepositoryKey.swift), each with
+       liveValue/testValue/previewValue, read via @Dependency -- no manual composition root, no
+       singleton, no container library.
+     - Two new Core-level capabilities beyond Repository protocols -- BiometricAuthenticating
+       (wraps LAContext) and BiometricCredentialStoring (wraps Keychain for the device_id/
+       biometric_token pairing) -- each also get their own single DependencyKey, same convention,
+       correctly kept separate from KeychainStoring (narrowly scoped to the auth-token account)
+       rather than overloading it.
+     - No hardcoded backend domain/URL outside Environment (Core) -- confirmed, no new networking
+       code touches anything but NetworkClient/Environment.
+     - Auth token still query-param only, no refresh-token flow -- unaffected this sprint.
+     - Every new network call matches docs/api-reference.md exactly: BiometricRepositoryImpl's
+       four calls (`/v1/biometric/enable|disable|check-status|login`) and AddressRepositoryImpl's
+       four calls (`/users/address`, `/users/address/store`, `/users/address/update/{id}`,
+       `/users/address/delete/{id}`) match the documented paths/methods verbatim. Two response-
+       shape assumptions (biometric_token origin, check-status response shape) were flagged as
+       UNCONFIRMED in both code comments and docs/api-reference.md rather than silently guessed --
+       correct handling of an undocumented shape, same discipline as Sprint 4/5's DTO-shape finds.
+       AddressRepositoryImpl correctly reuses the existing AddressDTO (Sprint 2) instead of
+       duplicating a new one.
+     - ViewModel-depends-on-UseCase-not-Repository pattern held for every new ViewModel this
+       sprint (BiometricSettingsViewModel, AddressListViewModel, AddressFormViewModel,
+       LocationPickerViewModel, ProfileViewModel, AccountDeletionViewModel) -- each constructed by
+       its View reading @Dependency, none hold a Repository protocol directly. LoginViewModel's
+       extension (biometricLoginUseCase) follows the same rule.
+     - MapKit/CoreLocation code (LocationPickerView/LocationPickerViewModel) confirmed confined to
+       Presentation -- Address (Domain) still has zero imports beyond Foundation, `location` is
+       still a plain String; the lat/lng-to-string conversion happens entirely in
+       LocationPickerViewModel via CLGeocoder, matching F-014's acceptance criteria exactly.
+     - No "account verification" screen was built -- confirmed absent from the diff, correctly
+       out of scope per the sprint plan.
+     - project.pbxproj's only change is the single new
+       INFOPLIST_KEY_NSLocationWhenInUseUsageDescription build setting on the main app target's
+       Debug/Release configs (not studiopTests/studiopUITests, which don't need it) --
+       `plutil -lint` confirmed the file is still well-formed after the edit, and the build
+       succeeding independently confirms it took effect correctly.
+
+  4. **Test verification** -- per the Testing Policy, no test run is a gate for this sprint. Noted
+  for completeness: `xcodebuild build-for-testing` (compile-only, not `test`) succeeded, meaning
+  the existing test suite (including the fixed LoginViewModelTests) is not left in a broken
+  state, even though it isn't re-run as part of this checklist.
+
+  No bugs found. `release_ready: true`.
+
+  Carried-forward follow-ups (not sprint blockers, tracked for whoever picks this up next):
+  the two UNCONFIRMED biometric assumptions (token origin, check-status response shape) need
+  verification against the Flutter source or real captured traffic before Sprint 6's biometric
+  flow can be trusted end-to-end against the real backend. A genuine gap was also discovered (not
+  introduced) this sprint: nothing in Presentation currently flips `appState.isAuthenticated` back
+  to `false` on a 401/403 mid-session (`NetworkClient` only clears the Keychain token) --
+  AccountDeletionViewModel handles its own case directly and correctly, but the general
+  401/403-mid-session UX gap is real and worth a Sprint 13 (cross-cutting hardening) follow-up.
+  Google/TikTok sign-in and the "Quick login"/"Account verification" scope questions carried
+  forward from Sprint 5 remain open, unaffected by this sprint.

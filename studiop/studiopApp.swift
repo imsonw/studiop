@@ -24,7 +24,7 @@ struct RootView: View {
 
     var body: some View {
         if appState.isAuthenticated {
-            HomeView()
+            HomeView(appState: appState)
         } else {
             LoginView(appState: appState)
         }

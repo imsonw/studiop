@@ -1,0 +1,191 @@
+sprint_goal: >
+  Remaining Auth & Account feature set deferred from Sprint 5: Biometric login (new Data layer +
+  a new Core device-auth abstraction), Profile & address book (address book needs a new Data
+  layer; profile edit screens are Presentation-only, reusing Sprint 3's UserRepositoryImpl), and
+  Account deletion (Presentation-only, reusing UserRepositoryImpl). "Account verification" is
+  explicitly OUT of scope this sprint — see product_backlog.yaml's 2026-07-16 note: no confirmed
+  backend endpoint for it distinct from registration's `/users/verify/account` (already built in
+  Sprint 5); needs clarification before it can be planned.
+
+backlog:
+  - id: F-012
+    title: Biometric login
+    description: >
+      Face ID/Touch ID, device_id + biometric_token pairing, enable/disable/check-status, per
+      docs/api-reference.md -> BiometricRepository. Needs a new BiometricRepositoryImpl +
+      DependencyKey (Domain protocol + UseCases already exist from Sprint 2) plus a new Core
+      abstraction for the on-device Face ID/Touch ID prompt itself (LocalAuthentication), which
+      is a separate concern from the backend pairing calls.
+    acceptance_criteria:
+      - "BiometricRepositoryImpl implements all four BiometricRepository methods against
+        `/v1/biometric/enable|disable|check-status|login` exactly as shaped in
+        docs/api-reference.md. `loginWithBiometric` uses `.publicToken` (per docs: 'no user token
+        needed for that call'); enable/disable/check-status use `.userToken` (pairing a device
+        requires an already-authenticated session)."
+      - "KNOWN UNCONFIRMED ITEM, do not silently resolve: docs/api-reference.md's `/v1/biometric/
+        enable` request body is `{device_id, device_name}` — no `biometric_token` field — and its
+        response shape is undocumented. Before finalizing BiometricRepositoryImpl, check the
+        Flutter source app's biometric-pairing code (or capture a real `/v1/biometric/enable`
+        request+response) to confirm whether `biometric_token` is server-issued (returned in
+        enable's response) or a client-generated secret. If neither can be confirmed this sprint,
+        implement the client-generated-UUID path as a clearly-flagged best guess (mirroring
+        Sprint 3/4's DTO-shape guesses) and record it in dev_report's notes and
+        docs/api-reference.md, not just in code comments."
+      - "New Core type `BiometricAuthenticating` (protocol) wraps `LAContext` — `canEvaluatePolicy`
+        (capability + biometry-type check) and an async `authenticate(reason:) async throws`
+        prompting Face ID/Touch ID. Gets a `DependencyKey` (liveValue wraps a real `LAContext`,
+        testValue/previewValue are fakes that succeed/fail deterministically without ever
+        touching real biometry) — same DI convention as `KeychainStoring`, one protocol per
+        distinct capability."
+      - "`device_id` (a stable per-install identifier) and the paired `biometric_token` persist in
+        Keychain, not UserDefaults/SwiftData — same rationale as the existing auth token: a
+        secret, not display data. This does not reopen the general SwiftData-vs-cache decision
+        left open in docs/architecture.md; it's a single small secret, same category as the
+        token already in Keychain."
+      - "LoginView gains a 'Log in with Face ID/Touch ID' affordance, shown only when
+        CheckBiometricStatusUseCase confirms the current device is enabled; tapping it calls
+        BiometricAuthenticating.authenticate first (device prompt), then BiometricLoginUseCase
+        only if that succeeds — never call the backend before the on-device prompt passes."
+      - "An 'enable Face ID/Touch ID' toggle lives in the new Account/Settings area built by
+        F-014 below (TASK-6) — calls EnableBiometricUseCase/DisableBiometricUseCase, gated behind
+        BiometricAuthenticating.canEvaluatePolicy so the toggle doesn't even appear on devices/
+        simulators without biometry configured."
+
+  - id: F-014
+    title: Profile & address book
+    description: >
+      View/edit profile, change password, change info (Presentation only — UserRepositoryImpl
+      already covers these from Sprint 3) plus address book (list/create/update/delete/set
+      default, select-address bottom sheet — needs a new AddressRepositoryImpl + DependencyKey;
+      Domain protocol + UseCases already exist from Sprint 2).
+    acceptance_criteria:
+      - "AddressRepositoryImpl implements all four AddressRepository methods against
+        `/users/address`, `/users/address/store`, `/users/address/update/{id}`,
+        `/users/address/delete/{id}` exactly as shaped in docs/api-reference.md, using
+        `.userToken` (address book is account-scoped)."
+      - "Address book screen: list (ListAddressesUseCase), create/edit form
+        (CreateAddressUseCase/UpdateAddressUseCase), delete with confirmation
+        (DeleteAddressUseCase), and 'set default' — the Address entity's `isDefault` flag,
+        toggled via UpdateAddressUseCase (no separate set-default endpoint exists in
+        docs/api-reference.md; do not invent one)."
+      - "Select-address bottom sheet is a reusable component (not a new screen) so Sprint 7's
+        checkout (F-022) can present the same list without rebuilding it — but do not build
+        checkout integration itself this sprint, only the reusable sheet."
+      - "SENIOR-SKILL ADD-ON, approved with the user 2026-07-16 (docs/senior-skills-roadmap.md
+        §9 — beyond docs/features.md's bare 'list/create/update/delete'): the address create/edit
+        form gains a 'pick on map' affordance using the iOS 17+ `Map`/`MapReader` SwiftUI API (not
+        the older `MKMapView` UIKit wrapper) plus `CLLocationManager` (current-location button) and
+        `CLGeocoder` (reverse-geocode a dropped pin into a display string). It writes into
+        `Address.location` (already a plain `String` on the Domain entity from Sprint 2) — do not
+        change `Address`'s type to hold coordinates; Domain stays a plain string, the
+        lat/lng-to-string conversion happens entirely in Presentation. The manual text field stays
+        as a fallback/edit path alongside the map picker, not replaced by it."
+      - "Profile screen: view/edit profile via ChangeUserInfoUseCase-equivalent
+        (UserRepository.changeUserInfo), change password (changePassword), change contact/social/
+        company/VAT info (changeUserProfile) — all reuse UserRepositoryImpl as-is, zero Data
+        layer changes."
+      - "Profile screen becomes the entry point (an 'Account/Settings' area) that also surfaces
+        the biometric enable toggle (F-012) and the account-deletion entry point (F-015) — this
+        sprint's first screen that acts as a settings hub, ahead of the full bottom-tab shell
+        (Sprint 9's F-028)."
+      - "Every new ViewModel follows Sprint 4/5's established pattern: reads `@Dependency` at the
+        View layer only, receives pre-built UseCases through its initializer — no `@Dependency`
+        inside an `@Observable` class, no ViewModel holding a Repository directly."
+
+  - id: F-015
+    title: Account deletion
+    description: >
+      Request-with-reason + email-code confirm, per docs/api-reference.md ->
+      `/users/request_remove` + `/users/request_remove/confirm`. Presentation only —
+      UserRepositoryImpl already implements both methods from Sprint 3. "Account verification"
+      (the other half of the original F-015) is explicitly excluded this sprint — see
+      product_backlog.yaml's 2026-07-16 note.
+    acceptance_criteria:
+      - "Account-deletion screen, reachable from the Profile/Settings area built in F-014: a
+        reason field + submit calls UserRepository.requestAccountRemoval(reason:) — zero new
+        Data layer."
+      - "A second screen/step (or the emailed link) collects `{email, code}` and calls
+        UserRepository.confirmAccountRemoval(email:code:) — mirror VerifyAccountView's existing
+        shape (Sprint 5) for a code-entry screen, since the two flows are structurally identical
+        (submit email+code, show success/error inline, no auto-navigation on success)."
+      - "On confirmed deletion, clear the Keychain token and route to Login — same
+        session-teardown path already used for 401/403 in NetworkClient, reused here rather than
+        duplicated."
+      - "Do NOT build an 'account verification flow' screen this sprint — flag it back to the
+        user for clarification instead (docs/features.md's bullet has no matching endpoint in
+        docs/api-reference.md)."
+
+tasks:
+  - id: TASK-1
+    owner: DEV
+    description: >
+      BiometricRepositoryImpl + DependencyKey (Data/Auth/Network, Data/Auth/DependencyKeys) —
+      all four BiometricRepository methods against `/v1/biometric/*`. Follow F-012's acceptance
+      criteria on auth mode per call and the biometric_token open question — flag, don't guess
+      silently.
+    depends_on: []
+
+  - id: TASK-2
+    owner: DEV
+    description: >
+      AddressRepositoryImpl + DependencyKey (Data/Auth/Network, Data/Auth/DependencyKeys) — all
+      four AddressRepository methods against `/users/address/*`.
+    depends_on: []
+
+  - id: TASK-3
+    owner: DEV
+    description: >
+      Core: BiometricAuthenticating protocol wrapping LAContext (canEvaluatePolicy +
+      authenticate(reason:)) + DependencyKey (liveValue/testValue/previewValue), per F-012's
+      acceptance criteria.
+    depends_on: []
+
+  - id: TASK-4
+    owner: DEV
+    description: >
+      Biometric UI: LoginView's Face ID/Touch ID quick-login affordance (device prompt via
+      BiometricAuthenticating, then BiometricLoginUseCase); standalone enable/disable view backed
+      by EnableBiometricUseCase/DisableBiometricUseCase/CheckBiometricStatusUseCase, gated on
+      BiometricAuthenticating.canEvaluatePolicy.
+    depends_on: [TASK-1, TASK-3]
+
+  - id: TASK-5
+    owner: DEV
+    description: >
+      Address book UI: list/create/edit/delete/set-default screens + the reusable
+      select-address bottom sheet, per F-014's acceptance criteria. Create/edit form includes the
+      MapKit 'pick on map' affordance (SwiftUI `Map`/`MapReader`, `CLLocationManager`,
+      `CLGeocoder`) alongside the manual text field — see F-014's senior-skill acceptance
+      criterion. Requires adding `NSLocationWhenInUseUsageDescription` to Info.plist.
+    depends_on: [TASK-2]
+
+  - id: TASK-6
+    owner: DEV
+    description: >
+      Profile/Account-Settings UI: view/edit profile, change password, change contact/social/
+      company/VAT info (all reuse UserRepositoryImpl as-is) — and this screen becomes the entry
+      point surfacing TASK-4's biometric toggle and TASK-7's account-deletion entry point.
+    depends_on: [TASK-4]
+
+  - id: TASK-7
+    owner: DEV
+    description: >
+      Account deletion UI: request-with-reason screen + email-code confirm screen (mirroring
+      VerifyAccountView's shape), reachable from TASK-6's Settings area, per F-015's acceptance
+      criteria. Do not build an "account verification" screen — that's out of scope this sprint.
+    depends_on: [TASK-6]
+
+  - id: TASK-8
+    owner: QA
+    description: >
+      Run the full QA checklist (static analysis build, formatting, convention audit — no test
+      run gate, per the Testing Policy) against Sprint 6. Convention audit should specifically
+      confirm: (a) BiometricRepositoryImpl/AddressRepositoryImpl match docs/api-reference.md
+      exactly, including auth mode per call; (b) the biometric_token open question is recorded
+      in dev_report/docs/api-reference.md, not silently resolved; (c) BiometricAuthenticating
+      lives in Core with its own DependencyKey, not folded into BiometricRepository; (d) no
+      "account verification" screen was built; (e) every new ViewModel depends on UseCases, not
+      Repositories directly, same as Sprint 4/5; (f) the MapKit location picker's CoreLocation/
+      MapKit imports stay confined to Presentation — `Address` (Domain) still has zero imports
+      beyond Foundation, still a plain `String` for `location`.
+    depends_on: [TASK-4, TASK-5, TASK-6, TASK-7]
