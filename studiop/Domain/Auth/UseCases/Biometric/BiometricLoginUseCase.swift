@@ -7,7 +7,10 @@ struct BiometricLoginUseCase {
         self.repository = repository
     }
 
-    func callAsFunction(deviceID: String, biometricToken: String) async throws -> AuthSession {
+    func callAsFunction(
+        deviceID: String,
+        biometricToken: String
+    ) async throws -> (session: AuthSession, newBiometricToken: String?) {
         try await repository.loginWithBiometric(deviceID: deviceID, biometricToken: biometricToken)
     }
 }

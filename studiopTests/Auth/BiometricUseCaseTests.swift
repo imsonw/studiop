@@ -10,6 +10,8 @@ final class FakeBiometricRepository: BiometricRepository, @unchecked Sendable {
         user: User(id: 1, idEncode: "abc", name: "Jane", email: "jane@example.com"),
         token: "biometric-token"
     )
+    var biometricTokenToReturn = "server-issued-token"
+    var newBiometricTokenToReturn: String?
     var errorToThrow: Error?
 
     private(set) var lastEnable: (deviceID: String, deviceName: String)?
@@ -17,9 +19,10 @@ final class FakeBiometricRepository: BiometricRepository, @unchecked Sendable {
     private(set) var lastCheckStatusDeviceID: String?
     private(set) var lastBiometricLogin: (deviceID: String, biometricToken: String)?
 
-    func enableBiometric(deviceID: String, deviceName: String) async throws {
+    func enableBiometric(deviceID: String, deviceName: String) async throws -> String {
         lastEnable = (deviceID, deviceName)
         if let errorToThrow { throw errorToThrow }
+        return biometricTokenToReturn
     }
 
     func disableBiometric(deviceID: String) async throws {
@@ -33,10 +36,13 @@ final class FakeBiometricRepository: BiometricRepository, @unchecked Sendable {
         return deviceToReturn
     }
 
-    func loginWithBiometric(deviceID: String, biometricToken: String) async throws -> AuthSession {
+    func loginWithBiometric(
+        deviceID: String,
+        biometricToken: String
+    ) async throws -> (session: AuthSession, newBiometricToken: String?) {
         lastBiometricLogin = (deviceID, biometricToken)
         if let errorToThrow { throw errorToThrow }
-        return authSessionToReturn
+        return (authSessionToReturn, newBiometricTokenToReturn)
     }
 }
 
@@ -78,7 +84,8 @@ struct BiometricUseCaseTests {
 
         #expect(fake.lastBiometricLogin?.deviceID == "device-1")
         #expect(fake.lastBiometricLogin?.biometricToken == "btok")
-        #expect(result == fake.authSessionToReturn)
+        #expect(result.session == fake.authSessionToReturn)
+        #expect(result.newBiometricToken == nil)
     }
 
     @Test func biometricLoginPropagatesError() async throws {

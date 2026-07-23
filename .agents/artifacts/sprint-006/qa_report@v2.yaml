@@ -1,0 +1,54 @@
+static_analysis_passed: true
+formatting_passed: true
+convention_audit_passed: true
+bugs_found: []
+release_ready: true
+
+notes: >
+  QA re-verification for dev_report@v2 (biometric-login parity fix against the Flutter source,
+  reported by the user 2026-07-23 -- see dev_report@v2 for the six concrete gaps found and fixed).
+
+  1. **Static analysis** -- `xcodebuild -scheme studiop -destination 'generic/platform=iOS
+  Simulator' build-for-testing` succeeded with zero errors (`** TEST BUILD SUCCEEDED **`),
+  confirming the new tuple-returning `BiometricRepository.loginWithBiometric` and
+  `String`-returning `enableBiometric` signatures propagate cleanly through
+  `BiometricRepositoryImpl`, both fakes in `BiometricRepositoryKey.swift`,
+  `FakeBiometricRepository` in `BiometricUseCaseTests.swift`, both UseCases, and every call site
+  (`LoginViewModel`, `BiometricSettingsViewModel`).
+
+  2. **Formatting** -- no swiftformat/swift-format or .swiftlint.yml configured, same as every
+  prior sprint; `formatting_passed: true` per fallback rule.
+
+  3. **Convention audit**:
+     - Layering held: the two new DTOs (`EnableBiometricResponseDTO`, `BiometricLoginResponseDTO`)
+       are Data-layer only, both `import Foundation` alone. `BiometricRepository.swift` (Domain)
+       still imports only Foundation -- its doc comment updated, protocol shape changed (return
+       types), no networking/Firebase/Ably crept in.
+     - `LoginViewModel.swift` and `BiometricSettingsViewModel.swift` (Presentation) each gained
+       `import LocalAuthentication` to name `LAError` in a targeted catch clause -- this is a
+       device-capability framework, not networking/Firebase/Ably, and Presentation already
+       imports platform frameworks directly elsewhere (`LoginView` imports
+       `AuthenticationServices` for Sign in with Apple), so this is consistent with existing
+       convention, not a new violation.
+     - No new DependencyKey needed -- both fixes reuse the existing `biometricRepository`,
+       `biometricCredentialStore` dependencies; `ProfileViewModel` picked up
+       `biometricCredentialStore` via constructor injection (`ProfileView`'s `@Dependency`), same
+       pattern as every other ViewModel, no manual composition root/singleton introduced.
+     - Every changed network call still matches docs/api-reference.md, which was updated
+       alongside the code: `/v1/biometric/enable`'s response now documented as returning a
+       top-level `biometric_token` (confirmed, no longer UNCONFIRMED); `/v1/biometric/login`'s
+       optional top-level `new_biometric_token` documented as confirmed. `/v1/biometric/
+       check-status`'s response shape correctly left marked UNCONFIRMED -- the Flutter source
+       doesn't reveal it either, so nothing was silently resolved there.
+     - `MockNetworkClient` (current `NetworkClientKey.liveValue`) updated to emit both new fields
+       so the mocked app actually exercises the fixed paths end-to-end, not just compiles.
+     - Test-file changes are compile-fixes only (constructor/assertion signature updates), no new
+       coverage added -- consistent with the Testing Policy.
+
+  No bugs found. `release_ready: true`.
+
+  Carried forward, unchanged from v1/v2's dev_report: `/v1/biometric/check-status`'s response
+  shape remains UNCONFIRMED; the general 401/403-mid-session `appState.isAuthenticated` gap
+  (Sprint 13 candidate); Google/TikTok sign-in and "Quick login"/"Account verification" scope
+  questions.
+</notes>

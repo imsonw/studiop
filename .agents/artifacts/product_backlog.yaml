@@ -37,6 +37,49 @@ description: >
   (renumbered Sprint 13) alongside F-045 (Feature flags), which it depends on. Every sprint
   formerly numbered 6-14 is renumbered +1 (now 7-15) to make room.
 
+  Sprint 6 planned 2026-07-16. Verified against the codebase: Domain (entities, `BiometricRepository`/
+  `AddressRepository` protocols, all four UseCases each) already exists for both from Sprint 2, but
+  neither has a Data-layer impl yet — same "just-in-time Data layer" build-out as every prior sprint.
+  `UserRepositoryImpl` already implements `requestAccountRemoval`/`confirmAccountRemoval` (Sprint 3),
+  so F-015's account-deletion half needs zero new Data layer, same shape as F-011/F-013 in Sprint 5.
+  Two scope items narrowed rather than guessed:
+  (1) F-015 originally bundled "Account deletion & verification" — docs/features.md lists "Account
+  verification flow (separate from email verification at registration)" but docs/api-reference.md
+  has no endpoint for it beyond `/users/verify/account` (registration's email-verify, already built
+  in Sprint 5). Same treatment as "Quick login" in Sprint 5: excluded from Sprint 6, needs
+  clarification (likely against the Flutter source) before it can be planned — Sprint 6's F-015 is
+  account deletion only.
+  (2) F-012 Biometric: `/v1/biometric/enable`'s documented request body is `{device_id, device_name}`
+  — no `biometric_token` field, and its response shape isn't documented at all, so where
+  `biometric_token` originates (server-issued vs. device-generated secret) is unconfirmed. Sprint 6's
+  DEV task flags this explicitly rather than guessing; must verify against the Flutter source or real
+  captured traffic before finalizing `BiometricRepositoryImpl`. Also new this sprint: Face ID/Touch ID
+  itself (the device prompt, via `LocalAuthentication`/`LAContext`) has no Core-layer wrapper yet —
+  distinct from `BiometricRepository` (which only talks to the backend pairing endpoints) — needs its
+  own small Core abstraction + `DependencyKey`, same DI convention as `KeychainStoring`.
+
+  Backlog reshaped 2026-07-16 around a second, explicit goal alongside feature-parity: this project
+  is also the user's vehicle to level up to Senior iOS, since recent day-to-day work (last ~4 years)
+  has been predominantly Flutter/cross-platform. Full gap analysis and reasoning in
+  docs/senior-skills-roadmap.md — summary of what changed structurally in this file:
+  (1) Sprint 6/F-014 gains a MapKit location-picker on the address create/edit form (approved
+  scope-add beyond docs/features.md's bare "list/create/update/delete", justified by the `Address.
+  location` field that already exists) — see sprint-006's own sprint_plan for the concrete task.
+  (2) Sprint 8/F-023 (Order history) gains a deliberate SwiftData-backed offline cache — resolves
+  architecture.md's "SwiftData vs. simpler cache, decide per-feature" open decision for this one
+  feature specifically, chosen for hands-on SwiftData depth (not a blanket persistence rewrite).
+  (3) Sprint 7 and Sprint 10 each gain a senior-technique addition that doesn't need a new F-id
+  (implementation technique, not a user-facing feature) — see docs/senior-skills-roadmap.md §1-2,7.
+  (4) Sprint 13 gains three new features (F-053 SSL Pinning, F-054 Crashlytics, F-055 CI/CD &
+  Fastlane) alongside its existing cross-cutting hardening scope.
+  (5) A new Sprint 14 "Testing & Quality Hardening" (F-056) is inserted right after Sprint 13 —
+  deliberately placed before the already-deferred/low-priority RTMP-streaming and Community
+  sprints rather than after them, so it doesn't risk trailing behind sprints that may not ship soon.
+  The former Sprint 14 (RTMP streaming) is renumbered Sprint 15; the former Sprint 15 (Community) is
+  renumbered Sprint 16. The scrum skill's "no unit tests" Testing Policy is otherwise unchanged for
+  every other sprint — this is a deliberately separate, purposeful testing pass (Domain UseCases +
+  1-2 complex ViewModels), not a reversal of that decision.
+
 sprints:
   - sprint: 1
     goal: >
@@ -146,7 +189,7 @@ sprints:
       Profile & address book (address book CRUD needs a new AddressRepositoryImpl —
       UserRepositoryImpl's changeUserAddress only covers the user's own record, not the separate
       AddressRepository protocol), and Account deletion & verification.
-    status: pending
+    status: completed
     features:
       - id: F-012
         title: Biometric login
@@ -165,7 +208,13 @@ sprints:
         description: Request-with-reason + email-code confirm; separate account verification flow.
 
   - sprint: 7
-    goal: Store/Catalog + Cart/Checkout — highest business value, least technical risk.
+    goal: >
+      Store/Catalog + Cart/Checkout — highest business value, least technical risk. Senior-skill
+      addition (2026-07-16, docs/senior-skills-roadmap.md §1,7 — no new F-id, an implementation
+      technique within F-017/F-018, not a user-facing feature): product image loading implemented
+      twice for comparison — a DispatchSemaphore-gated GCD version and the TaskGroup/actor version
+      that actually ships — plus an Instruments (Leaks/Allocations/Time Profiler) checkpoint at the
+      end of this sprint, the first of two (the other is Sprint 10).
     status: pending
     features:
       - id: F-017
@@ -197,7 +246,13 @@ sprints:
         title: Order list & detail
         description: >
           Status filter/search, shipping/payment/voucher/invoice cards, status banner,
-          invoice PDF viewer, voucher code redemption.
+          invoice PDF viewer, voucher code redemption. Senior-skill addition (2026-07-16,
+          docs/senior-skills-roadmap.md §3, confirmed with the user): backed by a deliberate
+          SwiftData local cache so already-placed orders stay visible offline — resolves
+          architecture.md's "SwiftData vs. simpler cache, decide per-feature" open decision for
+          this feature specifically (`@Model`, `ModelContainer`/`ModelContext`, background-context
+          inserts/fetches). Other features keep whatever simpler cache they already use; this is
+          not a blanket persistence rewrite.
       - id: F-024
         title: Mollie payment
         description: In-app WebView payment, redirect back into order detail on completion.
@@ -237,6 +292,12 @@ sprints:
     goal: >
       Live viewing & bidding — viewer side only per confirmed v1 scope (2026-07-14). Includes
       the Firebase RTDB data sources this feature needs (not built speculatively earlier).
+      Senior-skill addition (2026-07-16, docs/senior-skills-roadmap.md §2,7 — no new F-id): this is
+      the only sprint with genuine concurrent writers (RTDB pushing chat/reactions/bids into shared
+      UI state from callbacks not guaranteed to land on the main thread) — deliberately reproduce a
+      real data race here once before fixing it with `actor`/`@MainActor`, rather than only ever
+      seeing the already-fixed version. Second (of two) Instruments checkpoint at sprint end,
+      alongside video-playback memory profiling.
     status: pending
     features:
       - id: F-030
@@ -305,7 +366,8 @@ sprints:
     goal: >
       Cross-cutting hardening across all features built so far. Also picks up F-016
       (feature-flag toggle screen, moved from the original Sprint 5 on 2026-07-15) since it
-      depends on this sprint's F-045 Feature-flag infrastructure.
+      depends on this sprint's F-045 Feature-flag infrastructure. Gains three security/observability/
+      DevOps features 2026-07-16 (docs/senior-skills-roadmap.md §4-6) — F-053/F-054/F-055 below.
     status: pending
     features:
       - id: F-042
@@ -333,11 +395,50 @@ sprints:
         description: >
           app_update_enabled_*, app_update_min_version_name_*, app_update_store_url_* from
           Firebase Remote Config.
+      - id: F-053
+        title: SSL Pinning
+        description: >
+          Certificate/public-key pinning on URLSessionNetworkClient via URLSessionDelegate.
+          Added 2026-07-16 (docs/senior-skills-roadmap.md §4) — hardens the NetworkClient built
+          in Sprint 1 once the app is feature-complete-ish, not a green-field requirement.
+      - id: F-054
+        title: Crashlytics
+        description: >
+          Firebase Crashlytics integration — dSYM upload, symbolication, uncaught-exception/
+          signal handlers. Added 2026-07-16 (docs/senior-skills-roadmap.md §5); Firebase already
+          enters the project in Sprint 10 (RTDB).
+      - id: F-055
+        title: CI/CD & Fastlane
+        description: >
+          Fastlane lane (build -> archive -> TestFlight) + CI config (GitHub Actions) running
+          static analysis on every push. Added 2026-07-16 (docs/senior-skills-roadmap.md §6).
 
   - sprint: 14
     goal: >
+      Testing & Quality Hardening — new sprint inserted 2026-07-16
+      (docs/senior-skills-roadmap.md §8), placed here rather than at the literal end of the
+      roadmap so it lands before the already-deferred/low-priority RTMP-streaming and Community
+      sprints, not after them. Does not reverse the scrum skill's "no unit tests" Testing Policy
+      for any other sprint — this is a deliberately separate, purposeful pass: Domain UseCases
+      (pure logic, cheapest to test, highest signal) and 1-2 of the more complex ViewModels
+      (Sprint 10's concurrent-write handling is a strong candidate) — not blanket coverage of
+      every screen.
+    status: pending
+    features:
+      - id: F-056
+        title: Purposeful test suite for core Domain/ViewModel layers
+        description: >
+          XCTest coverage for select high-value, high-risk logic only — not every screen. Exists
+          so the portfolio project has a real testing story to speak to (the CV lists "XCTest,
+          70%+ coverage" as an existing skill), without slowing down every feature sprint that
+          preceded this one.
+
+  - sprint: 15
+    goal: >
       Streaming (seller/broadcaster side) — deferred out of v1 per the RTMP scope decision
-      confirmed with the user on 2026-07-14. Low priority; revisit after Sprint 13 ships.
+      confirmed with the user on 2026-07-14. Low priority; revisit after Sprint 14 ships.
+      (Renumbered from Sprint 14 on 2026-07-16 to make room for the new Testing & Quality
+      Hardening sprint above.)
     status: pending
     features:
       - id: F-047
@@ -355,11 +456,13 @@ sprints:
           Network-instability detection, streamer-side bidder list, confirm-stop-live/
           confirm-stop-selling/confirm-web-session modals, image upload for stream/product.
 
-  - sprint: 15
+  - sprint: 16
     goal: >
       Community layer (Forum, Marketplace) — pinned last per the user's decision on
       2026-07-14: included in the backlog but low priority, since both are off by feature
       flag in the source app. Confirm final go/no-go with stakeholders before starting.
+      (Renumbered from Sprint 15 on 2026-07-16 to make room for the new Testing & Quality
+      Hardening sprint.)
     status: pending
     features:
       - id: F-051

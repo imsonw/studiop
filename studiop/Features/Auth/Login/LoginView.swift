@@ -11,13 +11,19 @@ struct LoginView: View {
 
         @Dependency(\.authRepository) var authRepository
         @Dependency(\.userRepository) var userRepository
+        @Dependency(\.biometricRepository) var biometricRepository
         @Dependency(\.keychainStore) var keychainStore
+        @Dependency(\.biometricAuthenticating) var biometricAuthenticating
+        @Dependency(\.biometricCredentialStore) var biometricCredentialStore
 
         _viewModel = State(initialValue: LoginViewModel(
             loginUseCase: LoginUseCase(repository: authRepository),
             loginWithSocialUseCase: LoginWithSocialUseCase(repository: authRepository),
+            biometricLoginUseCase: BiometricLoginUseCase(repository: biometricRepository),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: userRepository),
             keychainStore: keychainStore,
+            biometricAuthenticating: biometricAuthenticating,
+            biometricCredentialStore: biometricCredentialStore,
             appState: appState
         ))
     }
@@ -60,6 +66,19 @@ struct LoginView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.isLoading || viewModel.email.value.isEmpty || viewModel.password.isEmpty)
+
+                if viewModel.canUseBiometricLogin {
+                    Button(action: {
+                        Task {
+                            await viewModel.loginWithBiometric()
+                        }
+                    }) {
+                        Label("Log in with Face ID / Touch ID", systemImage: "faceid")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isLoading)
+                }
 
                 NavigationLink("Create an account") {
                     RegisterView()

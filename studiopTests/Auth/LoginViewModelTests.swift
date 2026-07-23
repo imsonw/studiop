@@ -153,8 +153,11 @@ struct LoginViewModelTests {
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
             loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            biometricLoginUseCase: BiometricLoginUseCase(repository: FakeBiometricRepository()),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
+            biometricAuthenticating: AlwaysSucceedsBiometricAuthenticator(),
+            biometricCredentialStore: InMemoryBiometricCredentialStore(),
             appState: appState
         )
         viewModel.email.value = "test@example.com"
@@ -176,8 +179,11 @@ struct LoginViewModelTests {
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
             loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            biometricLoginUseCase: BiometricLoginUseCase(repository: FakeBiometricRepository()),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
+            biometricAuthenticating: AlwaysSucceedsBiometricAuthenticator(),
+            biometricCredentialStore: InMemoryBiometricCredentialStore(),
             appState: appState
         )
         viewModel.email.value = "test@example.com"
@@ -199,8 +205,11 @@ struct LoginViewModelTests {
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
             loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            biometricLoginUseCase: BiometricLoginUseCase(repository: FakeBiometricRepository()),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
+            biometricAuthenticating: AlwaysSucceedsBiometricAuthenticator(),
+            biometricCredentialStore: InMemoryBiometricCredentialStore(),
             appState: appState
         )
         viewModel.email.value = "not-an-email"
@@ -223,8 +232,11 @@ struct LoginViewModelTests {
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
             loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            biometricLoginUseCase: BiometricLoginUseCase(repository: FakeBiometricRepository()),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
+            biometricAuthenticating: AlwaysSucceedsBiometricAuthenticator(),
+            biometricCredentialStore: InMemoryBiometricCredentialStore(),
             appState: appState
         )
         viewModel.email.value = "test@example.com"
@@ -246,8 +258,11 @@ struct LoginViewModelTests {
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
             loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            biometricLoginUseCase: BiometricLoginUseCase(repository: FakeBiometricRepository()),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
+            biometricAuthenticating: AlwaysSucceedsBiometricAuthenticator(),
+            biometricCredentialStore: InMemoryBiometricCredentialStore(),
             appState: appState
         )
         let credential = AppleSignInCredential(
@@ -276,8 +291,11 @@ struct LoginViewModelTests {
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
             loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            biometricLoginUseCase: BiometricLoginUseCase(repository: FakeBiometricRepository()),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
+            biometricAuthenticating: AlwaysSucceedsBiometricAuthenticator(),
+            biometricCredentialStore: InMemoryBiometricCredentialStore(),
             appState: appState
         )
         let credential = AppleSignInCredential(
@@ -303,8 +321,11 @@ struct LoginViewModelTests {
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
             loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            biometricLoginUseCase: BiometricLoginUseCase(repository: FakeBiometricRepository()),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
+            biometricAuthenticating: AlwaysSucceedsBiometricAuthenticator(),
+            biometricCredentialStore: InMemoryBiometricCredentialStore(),
             appState: appState
         )
         let credential = AppleSignInCredential(
@@ -330,8 +351,11 @@ struct LoginViewModelTests {
         let viewModel = LoginViewModel(
             loginUseCase: LoginUseCase(repository: fakeAuth),
             loginWithSocialUseCase: LoginWithSocialUseCase(repository: fakeAuth),
+            biometricLoginUseCase: BiometricLoginUseCase(repository: FakeBiometricRepository()),
             fetchUserInfoUseCase: FetchUserInfoUseCase(repository: fakeUser),
             keychainStore: fakeKeychain,
+            biometricAuthenticating: AlwaysSucceedsBiometricAuthenticator(),
+            biometricCredentialStore: InMemoryBiometricCredentialStore(),
             appState: appState
         )
 
