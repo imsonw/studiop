@@ -1,0 +1,94 @@
+status: completed
+tasks_completed: [TASK-1, TASK-2, TASK-3, TASK-4, TASK-5, TASK-6, TASK-7, TASK-8, TASK-9, TASK-10]
+tasks_in_progress: []
+remaining_tasks: []
+notes: >
+  All DEV tasks completed. `xcodebuild build` and `xcodebuild build-for-testing` both succeed with
+  zero errors.
+
+  TASK-1 (StoreRepositoryImpl + DependencyKey): all 20 StoreRepository methods against `/stores/*`.
+  New DTOs: ProductCategoryDTO, BrandDTO, ProductSummaryDTO, ProductDTO, StoreSettingsDTO,
+  CartItemDTO, CheckoutSessionDTO, OrderDTO — every field name is UNCONFIRMED (flagged in each
+  DTO's doc comment) since docs/api-reference.md only documents StoreRepository's request shapes,
+  not response bodies; field names follow this backend's established snake_case + `id_encode`
+  convention (confirmed elsewhere via UserDTO) as a best guess, same discipline as Sprint 2-3's
+  early DTOs. Also extended Core: `NetworkRequest` gained a `bodyEncoding` field
+  (`.json`/`.formURLEncoded`) + `NetworkRequest.formURLEncodedBody(_:)` helper, and
+  `NetworkClient`'s Content-Type header now respects it — needed because
+  `/stores/checkout/{create,get,process}` are documented as "FormData", not JSON, unlike every
+  other endpoint so far.
+
+  TASK-2 (StudioRepositoryImpl + DependencyKey): all three StudioRepository methods against
+  `/studios/interactions`, `/studios/list/interaction`, `/studios/list/interaction/filters`. New
+  DTOs: StudioProfileDTO, StudioInteractionFilterDTO. STRUCTURAL NOTE: `StudioRepository`'s Domain
+  protocol lives under `Domain/Live/` (Studio ties into the live-streaming domain, not Commerce),
+  but its user-facing feature (F-020, favorites) is grouped under `Features/Commerce/Favorites/`
+  per docs/features.md's categorization ("Favorite/followed shops" listed under "Store /
+  Catalog") -- a cross-domain placement worth knowing about if a later sprint touches this again.
+
+  TASK-9 (senior-skill image loading comparison, docs/senior-skills-roadmap.md §1,7): `Core/
+  ImageLoading.swift` -- `ImageCache` (actor) is the version that ships, behind a new
+  `ImageLoading` protocol + DependencyKey (liveValue/testValue/previewValue, same convention as
+  every other Core capability), with in-flight-request deduplication (concurrent callers for the
+  same URL share one `Task`, not two races) and a `TaskGroup`-based `prefetch(_:)` for batch
+  warming (Storefront grid, Product detail carousel). `Core/GCDImageDownloader.swift` is the
+  comparison-only `DispatchSemaphore`-gated GCD version -- deliberately NOT behind `ImageLoading`,
+  NOT referenced by any View/ViewModel, kept solely so this note can compare the two shapes:
+  GCD blocks a background thread on `semaphore.wait()` and needs a manual `DispatchGroup` to know
+  when all downloads finish; the `async`/`await` version never blocks a thread (suspends instead)
+  and `withTaskGroup` already knows when its children finish, no separate completion-tracking
+  primitive needed.
+
+  TASK-3/4/5/6/7/8 (Presentation, F-017 through F-022): Storefront (category chips + product grid,
+  Brands list), Product detail (image carousel wired to TASK-9's prefetch, tiered pricing, rating
+  summary from `Product.rating`/`ratingCount` only -- full review list is Sprint 8, see F-018's
+  scope note in sprint_plan), Search (debounced autocomplete via `fetchProductList(query:)`,
+  UserDefaults-backed recent searches, suggested products via `fetchPopularProducts`), Favorites
+  (followed/liked shops only -- flash-sale/today's-suggestion excluded, no documented endpoint, see
+  F-020's scope note), Cart (list/update/remove/clear, swipe-to-remove, checkout hand-off), Checkout
+  (reuses Sprint 6's `SelectAddressSheet` verbatim as planned, fixed `payment_method` string --
+  Mollie/WebView is Sprint 8's F-024, success screen via `fetchCheckoutSuccess`). Shared
+  `AddToCartSheet` (tiered-price picker + quantity stepper) is reachable from both Product detail
+  and Storefront's grid (long-press quick-add fetches the full `Product` first, since
+  `ProductSummary` doesn't carry `priceTiers` -- a real constraint discovered while implementing,
+  not anticipated in the sprint plan). `CachedAsyncImageView` (Features/Commerce/Shared) is the one
+  shared image view every screen uses, backed by TASK-9's `ImageLoading`.
+
+  Every new ViewModel follows the established pattern: `@Dependency` read only at the View layer,
+  UseCases/Core capabilities passed through the initializer, no ViewModel holding a Repository
+  directly -- same discipline audited in Sprint 4-6's QA passes.
+
+  `MockNetworkClient` (current `NetworkClientKey.liveValue`) extended with every new endpoint
+  (`stores/*`, `studios/*`) including a mock form-urlencoded-body decoder for the checkout calls,
+  so the app is exercisable end-to-end against the mock backend, not just compiling.
+  `HomeView` gained two more temporary bridge NavigationLinks ("Store", "Favorites") alongside
+  Sprint 6's "Account" bridge -- still no real bottom tab shell (Sprint 9's F-028).
+
+  `CheckoutSession` (Domain entity) gained `Hashable` conformance (was `Equatable` only) --
+  required by SwiftUI's `navigationDestination(item:)` API used for the buy-now/cart-checkout
+  hand-off; a mechanical addition, not a behavior change.
+
+  **TASK-10 (Instruments checkpoint) -- PARTIAL, flagged rather than claimed complete:** a manual
+  code-review pass over the new image-heavy screens found no obvious retain-cycle pattern --
+  `ImageCache`'s per-URL download `Task` closures capture no `self` reference at all (only
+  `URLSession.shared`), and `prefetch`'s `withTaskGroup` children capturing `self` are structured
+  concurrency (guaranteed to complete before `prefetch` returns, not stored anywhere long-lived), so
+  there's no growing reference cycle by construction. That said, this is a static read of the code,
+  not an actual Leaks/Allocations/Time Profiler capture -- this environment has no way to launch
+  the Simulator, interact with the Storefront grid/Product carousel/Cart, and drive a live
+  Instruments session (that's a GUI, interactive-use profiling tool, not something a headless CLI
+  command can substitute for). Saying otherwise would be claiming a result that wasn't actually
+  produced. The user should run the actual Instruments pass in Xcode (Product > Profile, Leaks +
+  Allocations + Time Profiler templates, scroll through Storefront/Product detail/Cart) before
+  treating this checkpoint as genuinely done.
+
+  No unit tests written, per the Testing Policy. `xcodebuild build-for-testing` succeeds with zero
+  errors -- no existing test needed fixing this time (no shared signatures changed).
+
+  Still open, not addressed this sprint (out of scope, per sprint_plan's scope notes): F-018's
+  full review list (Sprint 8), F-020's flash-sale/today's-suggestion (needs endpoint
+  clarification), F-022's Mollie/WebView payment (Sprint 8's F-024). Every `Data/Commerce`/
+  `Data/Live` DTO's field names are UNCONFIRMED against real traffic -- same caveat as
+  `BiometricStatusDTO`'s still-open item from Sprint 6, carried forward as a class of risk rather
+  than a single item now that a whole new domain's worth of DTOs share it.
+</notes>

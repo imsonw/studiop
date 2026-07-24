@@ -16,10 +16,19 @@ struct NetworkRequest {
         case userToken
     }
 
+    /// How `body` should be encoded on the wire. Every endpoint so far has been JSON except
+    /// `StoreRepository`'s checkout calls, documented as "FormData" (not JSON) in
+    /// docs/api-reference.md — `.formURLEncoded` covers those (see `StoreRepositoryImpl`).
+    enum BodyEncoding: Equatable {
+        case json
+        case formURLEncoded
+    }
+
     var path: String
     var method: Method
     var queryItems: [URLQueryItem]
     var body: Data?
+    var bodyEncoding: BodyEncoding
     var headers: [String: String]
     var authentication: Authentication
 
@@ -28,6 +37,7 @@ struct NetworkRequest {
         method: Method = .get,
         queryItems: [URLQueryItem] = [],
         body: Data? = nil,
+        bodyEncoding: BodyEncoding = .json,
         headers: [String: String] = [:],
         authentication: Authentication = .userToken
     ) {
@@ -35,8 +45,20 @@ struct NetworkRequest {
         self.method = method
         self.queryItems = queryItems
         self.body = body
+        self.bodyEncoding = bodyEncoding
         self.headers = headers
         self.authentication = authentication
+    }
+
+    /// Encodes key/value pairs as an `application/x-www-form-urlencoded` body, for use with
+    /// `bodyEncoding: .formURLEncoded`.
+    static func formURLEncodedBody(_ fields: [String: String]) -> Data {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "+&=")
+        let pairs = fields.map { key, value in
+            "\(key)=\(value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value)"
+        }
+        return Data(pairs.joined(separator: "&").utf8)
     }
 }
 

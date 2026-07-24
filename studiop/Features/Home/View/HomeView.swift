@@ -11,12 +11,20 @@ struct HomeView: View {
                 Text("Bottom tabs and content will be added in Sprint 9.")
                     .foregroundStyle(.secondary)
 
-                // Temporary bridge to Sprint 6's Account/Settings area -- the real navigation
-                // entry point is the bottom tab shell (Sprint 9's F-028), not built yet.
+                // Temporary bridges to Sprint 6/7 feature areas -- the real navigation entry
+                // point is the bottom tab shell (Sprint 9's F-028), not built yet.
                 NavigationLink("Account") {
                     ProfileView(appState: appState)
                 }
                 .padding(.top)
+
+                NavigationLink("Store") {
+                    StorefrontView()
+                }
+
+                NavigationLink("Favorites") {
+                    FavoritesView()
+                }
 
                 Spacer()
             }

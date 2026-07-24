@@ -1,0 +1,75 @@
+static_analysis_passed: true
+formatting_passed: true
+convention_audit_passed: true
+bugs_found: []
+release_ready: true
+
+notes: >
+  QA Checklist Results (Sprint 7 -- Store/Catalog, Cart/Checkout, senior-skill image-loading
+  comparison):
+
+  1. **Static analysis** -- `xcodebuild -scheme studiop -destination 'generic/platform=iOS
+  Simulator' build` succeeded with zero errors. `xcodebuild build-for-testing` also succeeded with
+  zero errors; no existing test needed a signature fix this sprint (unlike Sprint 6), since no
+  shared type used by `studiopTests` changed shape except `CheckoutSession` gaining `Hashable`
+  (additive, not test-visible).
+
+  2. **Formatting** -- no swiftformat/swift-format or .swiftlint.yml configured;
+  `formatting_passed: true` per fallback rule, same as every prior sprint.
+
+  3. **Convention audit** -- checked explicitly:
+     - Layering held: `Domain/Commerce` and `Domain/Live` (touched only via `CheckoutSession`
+       gaining `Hashable`) import nothing beyond Foundation -- grepped explicitly, zero hits for
+       any other import. All new Data-layer files (`StoreRepositoryImpl`, `StudioRepositoryImpl`,
+       every new DTO) and Presentation files stay in their respective layers.
+     - `StoreRepository`/`StudioRepository` (both pre-existing Domain protocols from Sprint 2) each
+       get exactly one new `DependencyKey` this sprint (`StoreRepositoryKey`, `StudioRepositoryKey`),
+       each with liveValue/testValue/previewValue, read via `@Dependency` -- no manual composition
+       root, singleton, or container library. The new `ImageLoading` Core capability follows the
+       identical pattern (`ImageLoadingKey`, three values).
+     - No hardcoded backend domain/URL outside `Environment` (Core) -- confirmed, all new
+       `StoreRepositoryImpl`/`StudioRepositoryImpl` calls go through `NetworkClient`.
+     - Auth token still query-param only, no refresh-token flow -- unaffected this sprint.
+     - Every new network call's path matches docs/api-reference.md's `StoreRepository`/
+       `StudioRepository` tables exactly (`/stores/*`, `/studios/*`) -- no invented paths. Response
+       *field names* are explicitly UNCONFIRMED (flagged in every new DTO's doc comment and in
+       dev_report, not silently guessed as fact) since api-reference.md only documents request
+       shapes for these two repositories -- correct handling of a real documentation gap, same
+       discipline as prior sprints' DTO-shape finds.
+     - `NetworkRequest`'s new `bodyEncoding` field is additive (defaults to `.json`, preserving
+       every existing call site's behavior unchanged) and is justified by a real, documented
+       difference (`/stores/checkout/{create,get,process}` are "FormData", not JSON) -- not
+       speculative.
+     - `GCDImageDownloader` (the senior-skill comparison piece) confirmed NOT referenced by any
+       View/ViewModel -- grepped explicitly, only appears in its own file and in `ImageLoading.swift`'s
+       doc comments. `ImageCache` (the `TaskGroup`/actor version) is what's actually wired into
+       Storefront/Product detail via the shared `ImageLoading` DependencyKey.
+     - F-020's scope narrowing held: grepped for "flash sale"/"today's suggestion" across
+       `Features/Commerce` -- the only hits are the doc-comment scope notes explaining the
+       exclusion, no code implements either.
+     - F-022's scope narrowing held: grepped for "Mollie"/"WKWebView" -- only doc-comment
+       references explaining what's deliberately NOT built this sprint; `payment_method` is a
+       fixed string, no WebView/redirect code exists.
+     - Every new ViewModel depends on UseCases (or Core capabilities like `ImageLoading`), never a
+       Repository directly, and reads `@Dependency` only at the View layer -- same pattern audited
+       in Sprint 4-6.
+
+  4. **Test verification** -- per the Testing Policy, no test run gates this sprint.
+  `build-for-testing` (compile-only) succeeding confirms the existing suite isn't left broken.
+
+  No bugs found. `release_ready: true`.
+
+  **Flagged, not a blocker:** dev_report's TASK-10 (Instruments checkpoint) is a code-review pass
+  only, not a live Leaks/Allocations/Time Profiler capture -- this harness can't drive an
+  interactive Instruments session against the Simulator. The reasoning recorded (no `self`-capturing
+  closures stored long-term in `ImageCache`, `prefetch`'s TaskGroup children are structured and
+  short-lived) is sound but unverified against a real trace. Recommend the user runs an actual
+  Instruments pass in Xcode over Storefront/Product detail/Cart before treating this checkpoint as
+  fully closed.
+
+  Carried-forward follow-ups (not sprint blockers): every `Data/Commerce`/`Data/Live` DTO's field
+  names are UNCONFIRMED against real captured traffic -- same category of risk as
+  `BiometricStatusDTO`'s open item from Sprint 6, now covering a whole new domain. F-018's review
+  list, F-020's flash-sale/today's-suggestion, and F-022's Mollie payment remain explicitly
+  deferred to Sprint 8, per this sprint's own scope notes.
+</notes>
