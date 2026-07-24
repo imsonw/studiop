@@ -215,7 +215,7 @@ sprints:
       twice for comparison — a DispatchSemaphore-gated GCD version and the TaskGroup/actor version
       that actually ships — plus an Instruments (Leaks/Allocations/Time Profiler) checkpoint at the
       end of this sprint, the first of two (the other is Sprint 10).
-    status: pending
+    status: completed
     features:
       - id: F-017
         title: Storefront & catalog browse

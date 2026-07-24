@@ -2,8 +2,8 @@ import Foundation
 
 /// A checkout-in-progress — `/stores/checkout/create`, `/stores/checkout/get`,
 /// `/stores/checkout/process`.
-struct CheckoutSession: Equatable, Identifiable, Sendable {
-    struct LineItem: Equatable, Sendable {
+struct CheckoutSession: Equatable, Hashable, Identifiable, Sendable {
+    struct LineItem: Equatable, Hashable, Sendable {
         let productId: String
         let productName: String
         let quantity: Int

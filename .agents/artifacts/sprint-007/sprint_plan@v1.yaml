@@ -1,0 +1,226 @@
+sprint_goal: >
+  Store/Catalog + Cart/Checkout (F-017 through F-022) — highest business value, least technical
+  risk per product_backlog.yaml. Domain (entities, StoreRepository/StudioRepository protocols,
+  UseCases) already exists from Sprint 2; this sprint needs new Data layer for StoreRepository
+  (catalog/cart/checkout) and StudioRepository (follow/favorite shops), then the Presentation work
+  on top — same just-in-time Data-layer shape as every prior sprint. Also carries this project's
+  senior-skills-roadmap.md §1,7 addition: a GCD/DispatchSemaphore-vs-TaskGroup image-loading
+  comparison, plus the first of two Instruments (Leaks/Allocations/Time Profiler) checkpoints.
+
+backlog:
+  - id: F-017
+    title: Storefront & catalog browse
+    description: >
+      Storefront tab, category browse, product list per category, brand listing. Needs a new
+      StoreRepositoryImpl + DependencyKey (Domain protocol + UseCases already exist from Sprint 2)
+      covering the catalog-read half of StoreRepository.
+    acceptance_criteria:
+      - "StoreRepositoryImpl implements fetchStoreFilterSettings, fetchStoreDetail,
+        fetchCategories, fetchHomepageSettings, fetchHomepageZones, fetchPopularProducts,
+        fetchBestSellingProducts, fetchProductList, and fetchBrandList against
+        `/stores/*` exactly as shaped in docs/api-reference.md's StoreRepository table — every
+        query param (page/limit/q/category/price_min/price_max/min_rating/sort/random_seed/
+        is_mall/brand_id) wired through, none invented."
+      - "Storefront screen: category browse (fetchCategories) + product grid per category
+        (fetchProductList, category filter), brand listing screen (fetchBrandList)."
+      - "Product grid thumbnails use the TaskGroup/actor-based image loader built in TASK-9 (the
+        version that ships) — see the senior-skill task below."
+
+  - id: F-018
+    title: Product detail
+    description: >
+      Image carousel, seller card, tiered pricing, related products — via fetchProductDetail/
+      fetchRelatedProducts. SCOPE NOTE: docs/features.md's bullet for this feature also lists
+      "reviews" on the product detail screen, but the review list itself
+      (`GET /v1/reviews/product/{productId}`) needs ReviewRepositoryImpl, which
+      product_backlog.yaml scopes to Sprint 8 alongside the rest of the Reviews feature (F-025) —
+      same just-in-time Data-layer narrowing as Sprint 5/6. This sprint shows only the rating
+      summary already present on the `Product` entity (`rating`/`ratingCount` fields, zero new
+      Data layer) — the actual review cards/media gallery are Sprint 8 scope, not built here.
+    acceptance_criteria:
+      - "Product detail screen: image carousel (Marker-free, plain paged image view) using the
+        product's `images: [String]`, seller/store card (from `Product`'s brand/store fields +
+        `fetchStoreDetail`), tiered pricing display (`Product.PriceTier` list), related products
+        section (fetchRelatedProducts)."
+      - "Rating summary shown from `Product.rating`/`Product.ratingCount` directly — no
+        ReviewRepository call. Do NOT build the review-cards list or 'write a review' entry point
+        this sprint; that's Sprint 8's F-025."
+      - "Image carousel loads its images via the TaskGroup/actor-based loader from TASK-9, not a
+        naive one-`Task`-per-`AsyncImage` approach with no concurrency limit."
+
+  - id: F-019
+    title: Search
+    description: >
+      Autocomplete, recent searches, suggested products. No dedicated search endpoint exists in
+      docs/api-reference.md — reuses `fetchProductList`'s `q` query param for both autocomplete
+      and search-submit. "Recent searches" has no backend equivalent; persisted locally only.
+    acceptance_criteria:
+      - "Search screen: text field debounced into `fetchProductList(query: ...)` for
+        autocomplete-as-you-type results; submitting runs the same call as a full search."
+      - "'Recent searches' persisted locally (UserDefaults — display data, not a secret, so
+        Keychain is not the right fit here) capped at a small fixed count (e.g. 10), no backend
+        call involved."
+      - "'Suggested products' section reuses `fetchPopularProducts` — no new endpoint invented."
+
+  - id: F-020
+    title: Favorites & flash sale
+    description: >
+      SCOPE NARROWED, flag rather than guess (same discipline as Sprint 5/6's narrowing): the
+      original F-020 bundles three things with very uneven backend readiness.
+      (1) "Favorite/followed shops" maps to `StudioRepository` (`/studios/interactions`,
+      `/studios/list/interaction`, `/studios/list/interaction/filters`) — Domain protocol +
+      UseCases already exist from Sprint 2 (under `Domain/Live/`, not `Domain/Commerce/` — Studio
+      ties into the live-streaming domain per docs/features.md), but there is no
+      StudioRepositoryImpl yet. This sprint builds it and the favorites/followed-shops screen.
+      (2) "Flash sale list" and (3) "'today's suggestion' section" have **no documented endpoint**
+      anywhere in docs/api-reference.md's StoreRepository table — do not invent one (e.g. do not
+      assume `fetchPopularProducts` or a filtered `fetchProductList` silently *is* the flash-sale
+      feed without confirming that's actually correct against the Flutter source or real traffic).
+      Both are excluded from this sprint; flag back to the user for clarification before planning
+      them into a later sprint.
+    acceptance_criteria:
+      - "StudioRepositoryImpl implements toggleStudioInteraction, listStudioInteractions, and
+        fetchStudioInteractionFilters against `/studios/interactions`, `/studios/list/
+        interaction`, `/studios/list/interaction/filters` exactly as shaped in
+        docs/api-reference.md."
+      - "Favorites screen: list of followed/liked shops (listStudioInteractions with the
+        `follow`/`like` type filters), follow/unfollow toggle (toggleStudioInteraction), filter
+        chips from fetchStudioInteractionFilters."
+      - "Do NOT build a flash-sale list or 'today's suggestion' section this sprint — both need
+        endpoint clarification first, per the scope note above."
+
+  - id: F-021
+    title: Cart
+    description: >
+      Add/update/remove/clear/count, tiered-price add-to-cart bottom sheet. Reuses
+      StoreRepositoryImpl from TASK-1 (cart methods are part of the same StoreRepository
+      protocol) — no separate Data-layer task needed.
+    acceptance_criteria:
+      - "Cart screen: list (listCart), per-line update quantity (updateCart), remove
+        (removeFromCart), clear all (clearCart), cart badge/count (countCart)."
+      - "Tiered-price add-to-cart bottom sheet: presented from Product detail (F-018) and
+        Storefront grid (F-017) long-press/quick-add, lets the user pick a `PriceTier` before
+        calling addToCart(productId:quantity:priceType:) — priceType threaded through, not
+        hardcoded to the first tier."
+      - "Cart badge count refreshes after every add/update/remove/clear call, not just on screen
+        appear."
+
+  - id: F-022
+    title: Checkout
+    description: >
+      Address selection, payment method, order creation, success screen, "buy now" (checkout
+      without adding to cart first). Reuses StoreRepositoryImpl from TASK-1 (checkout methods are
+      part of the same protocol) plus Sprint 6's AddressRepository/SelectAddressSheet for address
+      selection. SCOPE NOTE: "payment method" here means selecting a `payment_method` string value
+      (e.g. the documented default `bank_transfer`) passed to `processCheckout` — actual Mollie
+      WebView payment integration is a separate feature (F-024, Sprint 8); do not build that here.
+    acceptance_criteria:
+      - "Checkout screen: address selection reuses Sprint 6's `SelectAddressSheet` (built
+        specifically so this sprint wouldn't need to rebuild it — see sprint-006's F-014 notes),
+        wired to updateCheckoutAddress(id:addressId:)."
+      - "Standard checkout flow: createCheckout(itemIds:) from selected cart items ->
+        getCheckout(id:priceType:) to review totals -> pick a payment_method string ->
+        processCheckout(id:paymentMethod:) -> success screen via fetchCheckoutSuccess(id:)."
+      - "'Buy now' flow: buyNow(productId:quantity:priceType:) from Product detail, skipping the
+        cart entirely, landing on the same checkout-review/success path as the standard flow."
+      - "Do NOT integrate Mollie/WebView payment this sprint — `payment_method` is just a string
+        value at this stage, per the scope note above."
+
+tasks:
+  - id: TASK-1
+    owner: DEV
+    description: >
+      StoreRepositoryImpl + DependencyKey (Data/Commerce/Network, Data/Commerce/DependencyKeys) —
+      every StoreRepository method against `/stores/*` per docs/api-reference.md. Covers catalog
+      (F-017/F-018/F-019) and cart/checkout (F-021/F-022) in one Data-layer build, since they're
+      all part of the same protocol.
+    depends_on: []
+
+  - id: TASK-2
+    owner: DEV
+    description: >
+      StudioRepositoryImpl + DependencyKey (Data/Live/Network, Data/Live/DependencyKeys) — the
+      three StudioRepository methods against `/studios/interactions`, `/studios/list/interaction`,
+      `/studios/list/interaction/filters`, needed only for F-020's narrowed favorites scope.
+    depends_on: []
+
+  - id: TASK-3
+    owner: DEV
+    description: >
+      F-017 Storefront & catalog browse UI: storefront tab, category browse, product list per
+      category, brand listing.
+    depends_on: [TASK-1]
+
+  - id: TASK-4
+    owner: DEV
+    description: >
+      F-018 Product detail UI: image carousel, seller card, tiered pricing, related products,
+      rating summary (from Product entity fields, no ReviewRepository call — see F-018's scope
+      note). Image carousel wired to TASK-9's shipped TaskGroup/actor image loader once that task
+      lands.
+    depends_on: [TASK-1]
+
+  - id: TASK-5
+    owner: DEV
+    description: >
+      F-019 Search UI: debounced autocomplete + submit via fetchProductList(query:), locally
+      persisted recent searches (UserDefaults), suggested products via fetchPopularProducts.
+    depends_on: [TASK-1]
+
+  - id: TASK-6
+    owner: DEV
+    description: >
+      F-020 Favorites UI (narrowed to followed/liked shops only, per F-020's scope note): list +
+      filter chips + follow/unfollow toggle. Do not build flash-sale/today's-suggestion.
+    depends_on: [TASK-2]
+
+  - id: TASK-7
+    owner: DEV
+    description: >
+      F-021 Cart UI: list/update/remove/clear/count, tiered-price add-to-cart bottom sheet
+      reachable from both TASK-3 (storefront grid) and TASK-4 (product detail).
+    depends_on: [TASK-1, TASK-4]
+
+  - id: TASK-8
+    owner: DEV
+    description: >
+      F-022 Checkout UI: standard checkout (createCheckout -> getCheckout -> processCheckout ->
+      success) reusing Sprint 6's SelectAddressSheet, plus the "buy now" path. No Mollie/WebView
+      integration this sprint (see F-022's scope note).
+    depends_on: [TASK-1, TASK-7]
+
+  - id: TASK-9
+    owner: DEV
+    description: >
+      SENIOR-SKILL ADD-ON (docs/senior-skills-roadmap.md §1,7, approved 2026-07-16): implement
+      product image loading twice, side by side, for the product grid (F-017) and carousel
+      (F-018) — (a) a DispatchSemaphore-gated DispatchQueue/GCD version (comparison-only, recorded
+      in dev_report's notes, NOT the version that ships), and (b) a TaskGroup/actor-based image
+      cache that IS the shipped version, wired into TASK-3/TASK-4. Record the comparison (code
+      shape, behavior under many concurrent requests) in dev_report — the point is having both to
+      compare, not shipping the GCD one.
+    depends_on: [TASK-4]
+
+  - id: TASK-10
+    owner: DEV
+    description: >
+      SENIOR-SKILL ADD-ON, first of two Instruments checkpoints (docs/senior-skills-roadmap.md
+      §7): run Leaks, Allocations, and Time Profiler against the Storefront grid (F-017), Product
+      detail carousel (F-018), and Cart (F-021) — the image-heaviest screens this sprint. Record
+      findings (any retain cycle, runaway allocation, or slow path found and fixed, or confirmed
+      clean) in dev_report's notes.
+    depends_on: [TASK-3, TASK-4, TASK-7, TASK-8, TASK-9]
+
+  - id: TASK-11
+    owner: QA
+    description: >
+      Run the full QA checklist (static analysis build, formatting, convention audit — no test
+      run gate, per the Testing Policy) against Sprint 7. Convention audit should specifically
+      confirm: (a) StoreRepositoryImpl/StudioRepositoryImpl match docs/api-reference.md exactly,
+      no invented fields/endpoints (especially: flash-sale/today's-suggestion were correctly left
+      out, not silently mapped to an unconfirmed endpoint); (b) every new ViewModel depends on
+      UseCases, not Repositories directly; (c) the GCD/DispatchSemaphore comparison code from
+      TASK-9 is NOT what's wired into the shipping UI (TaskGroup/actor version is); (d)
+      TASK-10's Instruments findings are recorded in dev_report, not skipped; (e) no Mollie/
+      WebView payment code was added (Sprint 8 scope).
+    depends_on: [TASK-3, TASK-4, TASK-5, TASK-6, TASK-7, TASK-8, TASK-9, TASK-10]

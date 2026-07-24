@@ -88,7 +88,10 @@ final class URLSessionNetworkClient: NetworkClient {
         urlRequest.httpBody = request.body
         urlRequest.setValue(currentLanguageCode(), forHTTPHeaderField: "lang")
         if request.body != nil {
-            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            let contentType = request.bodyEncoding == .formURLEncoded
+                ? "application/x-www-form-urlencoded"
+                : "application/json"
+            urlRequest.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         for (field, value) in request.headers {
             urlRequest.setValue(value, forHTTPHeaderField: field)
